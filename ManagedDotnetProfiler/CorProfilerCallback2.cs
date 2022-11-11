@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Text;
+using ProfilerAbstractIL;
+using ProfilerAbstractIL.IO;
 
 namespace ManagedDotnetProfiler
 {
@@ -163,7 +165,8 @@ namespace ManagedDotnetProfiler
 
             IMetaDataImport metaDataImport = NativeStubs.IMetaDataImportStub.Wrap((IntPtr)ppOut);
 
-            metaDataImport.GetMethodProps(new MdMethodDef(mdToken), out var typeDef, null, 0, out var size, out _, out _, out _, out _, out _);
+            var methodToken = new MdMethodDef(mdToken);
+            metaDataImport.GetMethodProps(methodToken, out var typeDef, null, 0, out var size, out _, out _, out _, out _, out _);
 
             var buffer = new char[size];
 
@@ -183,9 +186,44 @@ namespace ManagedDotnetProfiler
                 metaDataImport.GetTypeDefProps(typeDef, p, size, out _, out _, out _);
             }
 
+            _corProfilerInfo.GetILFunctionBody(moduleId, methodToken, out byte* body, out uint methodSize);
+
             var typeName = new string(buffer);
 
-            Console.WriteLine($"[Profiler] JITCompilationStarted: {typeName}.{methodName}");
+
+            var bodyArray = new byte[methodSize];
+            for (int i = 0; i < methodSize; i++)
+            {
+                bodyArray[i] = body[i];
+            }
+            var methodSizeInt = (int)methodSize;
+            var pev = new ReadOnlyByteMemory(new ByteArrayMemory(bodyArray, 0, methodSizeInt));
+            var res = ILReader.seekReadMethodRVA(pev, methodName);
+            
+            var instrs = res.Code.Instrs;
+
+            var name = $"{typeName}.{methodName}";
+
+            Console.WriteLine($"[Profiler] JITCompilationStarted: {name} - instrs.Length {instrs.Length}");
+
+            if (name.Contains("Main"))
+            {
+                var result = ILBinaryWriter.GenILMethodBody(name, res);
+                var newBodyArray = result.Item2.Item2;
+
+                Console.WriteLine($"bodyArray.Length: {bodyArray.Length}, newBodyArray.Length: {newBodyArray.Length}");
+
+                for (int i = 0; i < Math.Min(bodyArray.Length, newBodyArray.Length); i++)
+                {
+                    Console.WriteLine($"{bodyArray[i]} {newBodyArray[i]} {bodyArray[i] == newBodyArray[i]}");
+
+                }
+
+                //foreach (var instr in instrs)
+                //{
+                //    Console.WriteLine(instr);
+                //}
+            }
 
             return HResult.S_OK;
         }
