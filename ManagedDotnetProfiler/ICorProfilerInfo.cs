@@ -262,7 +262,7 @@ public unsafe interface ICorProfilerInfo : IUnknown
      */
     HResult GetILFunctionBodyAllocator(
                 ModuleId ModuleId,
-                out void* ppMalloc);
+                out IntPtr ppMalloc);
 
     /*
      * Replaces the method body for a function in a module.  This will replace
@@ -275,7 +275,7 @@ public unsafe interface ICorProfilerInfo : IUnknown
     HResult SetILFunctionBody(
                 ModuleId ModuleId,
                 MdMethodDef methodid,
-                byte pbNewILMethodHeader);
+                byte* pbNewILMethodHeader);
 
     /*
      * Retrieve app domain information given its id.

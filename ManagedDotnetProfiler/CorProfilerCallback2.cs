@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using ProfilerAbstractIL;
 using ProfilerAbstractIL.IO;
@@ -206,7 +207,7 @@ namespace ManagedDotnetProfiler
 
             Console.WriteLine($"[Profiler] JITCompilationStarted: {name} - instrs.Length {instrs.Length}");
 
-            if (name.Contains("Main"))
+            if (name.Contains("<Main>"))
             {
                 var result = ILBinaryWriter.GenILMethodBody(name, res);
                 var newBodyArray = result.Item2.Item2;
@@ -216,13 +217,29 @@ namespace ManagedDotnetProfiler
                 for (int i = 0; i < Math.Min(bodyArray.Length, newBodyArray.Length); i++)
                 {
                     Console.WriteLine($"{bodyArray[i]} {newBodyArray[i]} {bodyArray[i] == newBodyArray[i]}");
-
                 }
 
-                //foreach (var instr in instrs)
-                //{
-                //    Console.WriteLine(instr);
-                //}
+                var hresult = _corProfilerInfo.GetILFunctionBodyAllocator(moduleId, out var allocatorPtr);
+                Console.WriteLine($"GetILFunctionBodyAllocator {hresult}");
+
+                var allocator = NativeStubs.IMethodMallocStub.Wrap(allocatorPtr);
+
+                Console.WriteLine($"allocator.Alloc - before");
+
+                var bodyBuffer = allocator.Alloc((ulong)newBodyArray.LongLength);
+                
+                Console.WriteLine($"allocator.Alloc - done");
+
+                for (int j = 0; j < newBodyArray.Length; j++)
+                {
+                    bodyBuffer[j] = newBodyArray[j];
+                }
+
+                Console.WriteLine($"copied bytes to buffer");
+
+                hresult = _corProfilerInfo.SetILFunctionBody(moduleId, methodToken, bodyBuffer);
+                Console.WriteLine($"SetILFunctionBody {hresult}");
+
             }
 
             return HResult.S_OK;

@@ -9,7 +9,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestApp", "TestApp\TestApp.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NativeStubSourceGenerator", "NativeStubSourceGenerator\NativeStubSourceGenerator.csproj", "{5D588D0D-A230-4A8D-AD5B-A4ADB48A57F7}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "AbstractIL", "AbstractIL\AbstractIL.fsproj", "{FEACC71D-1A62-4EF2-8FB6-DBD01B7F29D9}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ProfilerAbstractIL", "ProfilerAbstractIL\ProfilerAbstractIL.fsproj", "{FEACC71D-1A62-4EF2-8FB6-DBD01B7F29D9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
