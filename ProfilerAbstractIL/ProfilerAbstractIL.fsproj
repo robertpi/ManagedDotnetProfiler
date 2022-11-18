@@ -18,6 +18,7 @@
     <Compile Include="ilbinary.fs" />
     <Compile Include="ilreader.fs" />
     <Compile Include="ilwrite.fs" />
+    <Compile Include="iltransforms.fs" />
   </ItemGroup>
 
 </Project>

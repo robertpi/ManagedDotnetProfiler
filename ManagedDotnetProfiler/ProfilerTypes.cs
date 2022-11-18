@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.InteropServices.JavaScript;
 
 namespace ManagedDotnetProfiler;
 
@@ -52,7 +53,27 @@ public readonly struct MdToken
     public readonly int Value;
 }
 
-public readonly struct MdModule
+public readonly struct MdAssembly
+{
+    public readonly int Value;
+}
+
+public readonly struct MdAssemblyRef
+{
+    public readonly int Value;
+}
+
+public readonly struct MdExportedType
+{
+    public readonly int Value;
+}
+
+public readonly struct MdManifestResource
+{
+    public readonly int Value;
+}
+
+public readonly struct MdFile
 {
     public readonly int Value;
 }
@@ -136,6 +157,11 @@ public readonly struct MdCustomAttribute
     public readonly int Value;
 }
 
+public readonly struct MdModule
+{
+    public readonly int Value;
+}
+
 public readonly struct CorElementType
 {
     public readonly uint Value;
@@ -212,6 +238,26 @@ public readonly struct COR_PRF_FUNCTION_ARGUMENT_RANGE
     public readonly uint Length;                         // contiguous length of the range
 }
 
+public readonly unsafe struct ASSEMBLYMETADATA
+{
+    public readonly ushort usMajorVersion;
+    public readonly ushort usMinorVersion;
+    public readonly ushort usBuildNumber;
+    public readonly ushort usRevisionNumber;
+    public readonly char* szLocale;
+    public readonly ulong cbLocale;
+    public readonly uint* rProcessor;
+    public readonly ulong ulProcessor;
+    public readonly OSINFO* rOS;
+    public readonly ulong ulOS;
+}
+
+public readonly unsafe struct OSINFO
+{
+    public readonly uint dwOSPlatformId;
+    public readonly uint dwOSMajorVersion;
+    public readonly uint dwOSMinorVersion;
+}
 
 [Flags]
 public enum CorPrfMonitor : uint
@@ -331,6 +377,8 @@ public static class KnownGuids
 {
     public static Guid IMetaDataImport = Guid.Parse("7DAC8207-D3AE-4c75-9B67-92801A497D44");
     public static Guid IMetaDataImport2 = Guid.Parse("FCE5EFA0-8BBA-4f8e-A036-8F2022B08466");
+    public static Guid IMetaDataAssemblyImport = Guid.Parse("EE62470B-E94B-424e-9B7C-2F00C9249F93");
+    public static Guid IMetaDataEmit = Guid.Parse("BA3FEE4C-ECB9-4e41-83B7-183FA41CD859");
     public static Guid ICorProfilerInfo3 = Guid.Parse("B555ED4F-452A-4E54-8B39-B5360BAD32A0");
     public static Guid ClassFactoryGuid = Guid.Parse("00000001-0000-0000-C000-000000000046");
 }

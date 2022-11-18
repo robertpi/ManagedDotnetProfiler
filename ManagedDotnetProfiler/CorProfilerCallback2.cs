@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using ProfilerAbstractIL;
 using ProfilerAbstractIL.IO;
+using ProfilerAbstractIL.Utilities.Library;
 
 namespace ManagedDotnetProfiler
 {
@@ -11,7 +13,10 @@ namespace ManagedDotnetProfiler
     {
         private static readonly Guid ICorProfilerCallback2Guid = Guid.Parse("8a8cc829-ccf2-49fe-bbae-0f022228071a");
 
+        private readonly object _syncRoot = new();
         private readonly NativeStubs.ICorProfilerCallback2Stub _corProfilerCallback2;
+        private readonly Dictionary<ModuleId, ModuleMetadata> _moduleMetadataTable = new();
+
         private ICorProfilerInfo3 _corProfilerInfo;
 
         public CorProfilerCallback2()
@@ -36,7 +41,7 @@ namespace ManagedDotnetProfiler
 
             _corProfilerInfo = NativeStubs.ICorProfilerInfo3Stub.Wrap(ptr);
 
-            var eventMask = CorPrfMonitor.COR_PRF_MONITOR_EXCEPTIONS | CorPrfMonitor.COR_PRF_MONITOR_JIT_COMPILATION;
+            var eventMask = CorPrfMonitor.COR_PRF_MONITOR_EXCEPTIONS | CorPrfMonitor.COR_PRF_MONITOR_JIT_COMPILATION | CorPrfMonitor.COR_PRF_MONITOR_MODULE_LOADS;
 
             result = _corProfilerInfo.SetEventMask(eventMask);
 
@@ -110,27 +115,63 @@ namespace ManagedDotnetProfiler
 
         public HResult ModuleLoadStarted(ModuleId moduleId)
         {
-            throw new NotImplementedException();
+            return HResult.S_OK;
         }
 
         public HResult ModuleLoadFinished(ModuleId moduleId, HResult hrStatus)
         {
-            throw new NotImplementedException();
+            if (hrStatus == HResult.S_OK)
+            {
+                var hresult = _corProfilerInfo.GetModuleMetaData(moduleId, CorOpenFlags.ofRead, KnownGuids.IMetaDataImport, out var ppOutImport);
+                IMetaDataImport metaDataImport = NativeStubs.IMetaDataImportStub.Wrap((IntPtr)ppOutImport);
+
+                hresult = _corProfilerInfo.GetModuleMetaData(moduleId, CorOpenFlags.ofRead, KnownGuids.IMetaDataAssemblyImport, out var ppOutAssemblyImport);
+                IMetaDataAssemblyImport metaDataAssemblyImport = NativeStubs.IMetaDataAssemblyImportStub.Wrap((IntPtr)ppOutAssemblyImport);
+
+                hresult = _corProfilerInfo.GetModuleMetaData(moduleId, CorOpenFlags.ofRead | CorOpenFlags.ofRead, KnownGuids.IMetaDataEmit, out var ppOutEmit);
+                IMetaDataEmit metaDataEmit = NativeStubs.IMetaDataEmitStub.Wrap((IntPtr)ppOutEmit);
+
+                _corProfilerInfo.GetModuleInfo(moduleId, out _, 0, out uint moduleSize, null, out _);
+
+                Span<char> moduleBuffer = stackalloc char[(int)moduleSize];
+
+                nint baseAddress;
+                AssemblyId assemblyId;
+
+                fixed (char* p = moduleBuffer)
+                {
+                    _corProfilerInfo.GetModuleInfo(moduleId, out baseAddress, moduleSize, out _, p, out assemblyId);
+                }
+
+                var moduleName = new string(moduleBuffer);
+
+                var moduleMetadata = new ModuleMetadata(moduleId, metaDataImport, metaDataAssemblyImport, metaDataEmit, moduleName, assemblyId, baseAddress);
+
+                Console.WriteLine($"Module Loaded: {moduleMetadata.ModuleName} loaded at address {moduleMetadata.BaseAddress:x2}");
+                Console.WriteLine($"Assembly: {moduleMetadata.AssemblyName}, {moduleMetadata.AssemblyVersion}");
+
+                lock (_syncRoot)
+                {
+                    _moduleMetadataTable.Add(moduleId, moduleMetadata);
+                }
+            }
+
+            return HResult.S_OK;
         }
 
         public HResult ModuleUnloadStarted(ModuleId moduleId)
         {
-            throw new NotImplementedException();
+            return HResult.S_OK;
         }
 
         public HResult ModuleUnloadFinished(ModuleId moduleId, HResult hrStatus)
         {
-            throw new NotImplementedException();
+            return HResult.S_OK;
         }
 
         public HResult ModuleAttachedToAssembly(ModuleId moduleId, AssemblyId assemblyId)
         {
-            throw new NotImplementedException();
+            return HResult.S_OK;
         }
 
         public HResult ClassLoadStarted(ClassId classId)
@@ -162,46 +203,48 @@ namespace ManagedDotnetProfiler
         {
             _corProfilerInfo.GetFunctionInfo(functionId, out var classId, out var moduleId, out var mdToken);
 
-            _corProfilerInfo.GetModuleMetaData(moduleId, CorOpenFlags.ofRead, KnownGuids.IMetaDataImport, out var ppOut);
+            ModuleMetadata moduleMetadata;
+            lock(_syncRoot)
+            {
+                _moduleMetadataTable.TryGetValue(moduleId, out moduleMetadata);
+            }
 
-            IMetaDataImport metaDataImport = NativeStubs.IMetaDataImportStub.Wrap((IntPtr)ppOut);
+            if (moduleMetadata == null)
+            {
+                return HResult.S_OK;
+            }
 
             var methodToken = new MdMethodDef(mdToken);
-            metaDataImport.GetMethodProps(methodToken, out var typeDef, null, 0, out var size, out _, out _, out _, out _, out _);
+            var hresult = moduleMetadata.Import.GetMethodProps(methodToken, out var typeDef, null, 0, out var size, out _, out _, out _, out _, out _);
 
             var buffer = new char[size];
 
             fixed (char* p = buffer)
             {
-                metaDataImport.GetMethodProps(new MdMethodDef(mdToken), out _, p, size, out _, out _, out _, out _, out _, out _);
+                moduleMetadata.Import.GetMethodProps(new MdMethodDef(mdToken), out _, p, size, out _, out _, out _, out _, out _, out _);
             }
 
             var methodName = new string(buffer);
 
-            metaDataImport.GetTypeDefProps(typeDef, null, 0, out size, out _, out _);
+            hresult = moduleMetadata.Import.GetTypeDefProps(typeDef, null, 0, out size, out _, out _);
 
             buffer = new char[size];
 
             fixed (char* p = buffer)
             {
-                metaDataImport.GetTypeDefProps(typeDef, p, size, out _, out _, out _);
+                hresult = moduleMetadata.Import.GetTypeDefProps(typeDef, p, size, out _, out _, out _);
             }
 
-            _corProfilerInfo.GetILFunctionBody(moduleId, methodToken, out byte* body, out uint methodSize);
+            hresult = _corProfilerInfo.GetILFunctionBody(moduleId, methodToken, out byte* body, out uint methodSize);
 
             var typeName = new string(buffer);
 
-
-            var bodyArray = new byte[methodSize];
-            for (int i = 0; i < methodSize; i++)
-            {
-                bodyArray[i] = body[i];
-            }
+            byte[] bodyArray = BufferToArray(body, methodSize);
             var methodSizeInt = (int)methodSize;
             var pev = new ReadOnlyByteMemory(new ByteArrayMemory(bodyArray, 0, methodSizeInt));
-            var res = ILReader.seekReadMethodRVA(pev, methodName);
-            
-            var instrs = res.Code.Instrs;
+            var methodBody = ILReader.seekReadMethodRVA(pev, methodName);
+
+            var instrs = methodBody.Code.Instrs;
 
             var name = $"{typeName}.{methodName}";
 
@@ -209,17 +252,31 @@ namespace ManagedDotnetProfiler
 
             if (name.Contains("<Main>"))
             {
-                var result = ILBinaryWriter.GenILMethodBody(name, res);
-                var newBodyArray = result.Item2.Item2;
+                var message = "Hello from profiler!";
+                var length = Encoding.Unicode.GetByteCount(message);
+                nint ptr = Marshal.AllocHGlobal(length);
+                var messageBytes = Encoding.Unicode.GetBytes(message);
+                ArrayToBuffer(messageBytes, (byte*)ptr);
+                MdString mdString = default;
+                Console.WriteLine($"DefineUserString - before");
+                moduleMetadata.Emit.DefineUserString((char*)ptr, (uint)length / 2, &mdString);
+                Console.WriteLine($"DefineUserString: {mdString}");
+
+                var x = mdString.Value;
+
+                var newMethodBody = ILTransforms.Transform(instrs => ILTransforms.AddStringCall(x, 0X0A00000C, instrs), methodBody);
+
+                var newBodyArray = ILBinaryWriter.GenILMethodBody(name, newMethodBody);
 
                 Console.WriteLine($"bodyArray.Length: {bodyArray.Length}, newBodyArray.Length: {newBodyArray.Length}");
 
-                for (int i = 0; i < Math.Min(bodyArray.Length, newBodyArray.Length); i++)
-                {
-                    Console.WriteLine($"{bodyArray[i]} {newBodyArray[i]} {bodyArray[i] == newBodyArray[i]}");
-                }
+                // debug code for body
+                //for (int i = 0; i < Math.Min(bodyArray.Length, newBodyArray.Length); i++)
+                //{
+                //    Console.WriteLine($"{bodyArray[i]} {newBodyArray[i]} {bodyArray[i] == newBodyArray[i]}");
+                //}
 
-                var hresult = _corProfilerInfo.GetILFunctionBodyAllocator(moduleId, out var allocatorPtr);
+                hresult = _corProfilerInfo.GetILFunctionBodyAllocator(moduleId, out var allocatorPtr);
                 Console.WriteLine($"GetILFunctionBodyAllocator {hresult}");
 
                 var allocator = NativeStubs.IMethodMallocStub.Wrap(allocatorPtr);
@@ -227,9 +284,10 @@ namespace ManagedDotnetProfiler
                 Console.WriteLine($"allocator.Alloc - before");
 
                 var bodyBuffer = allocator.Alloc((ulong)newBodyArray.LongLength);
-                
+
                 Console.WriteLine($"allocator.Alloc - done");
 
+                ArrayToBuffer(newBodyArray, bodyBuffer);
                 for (int j = 0; j < newBodyArray.Length; j++)
                 {
                     bodyBuffer[j] = newBodyArray[j];
@@ -243,6 +301,25 @@ namespace ManagedDotnetProfiler
             }
 
             return HResult.S_OK;
+        }
+
+        private static byte[] BufferToArray(byte* inBuffer, uint length)
+        {
+            var outArray = new byte[length];
+            for (int i = 0; i < length; i++)
+            {
+                outArray[i] = inBuffer[i];
+            }
+
+            return outArray;
+        }
+
+        private static void ArrayToBuffer(byte[] inArray, byte* outBuffer)
+        {
+            for (int i = 0; i < inArray.Length; i++)
+            {
+                outBuffer[i] = inArray[i];
+            }
         }
 
         public HResult JITCompilationFinished(FunctionId functionId, HResult hrStatus, bool fIsSafeToBlock)
@@ -420,18 +497,13 @@ namespace ManagedDotnetProfiler
 
             foreach (var module in modules)
             {
-                _corProfilerInfo.GetModuleInfo(module, out _, 0, out uint moduleSize, null, out _);
-
-                Span<char> moduleBuffer = stackalloc char[(int)moduleSize];
-
-                nint baseAddress;
-
-                fixed (char* p = moduleBuffer)
+                ModuleMetadata moduleMetadata;
+                lock (_syncRoot)
                 {
-                    _corProfilerInfo.GetModuleInfo(module, out baseAddress, moduleSize, out _, p, out _);
+                    _moduleMetadataTable.TryGetValue(module, out moduleMetadata);
                 }
 
-                Console.WriteLine($"Module: {new string(moduleBuffer)} loaded at address {baseAddress:x2}");
+                Console.WriteLine($"Module: {moduleMetadata.ModuleName} loaded at address {moduleMetadata.BaseAddress:x2}");
             }
 
             _corProfilerInfo.GetClassFromObject(thrownObjectId, out var classId);

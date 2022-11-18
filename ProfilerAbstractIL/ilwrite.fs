@@ -136,9 +136,6 @@ type CodeBuffer =
 
       availBrFixups: Dictionary<ILCodeLabel, int>
 
-      /// code loc to fixup in code buffer
-      mutable reqdStringFixupsInMethod: (int * int) list
-
       /// data for exception handling clauses
       mutable seh: ExceptionClauseSpec list
     }
@@ -151,7 +148,6 @@ type CodeBuffer =
         { seh = []
           code= ByteBuffer.Create CodeBufferCapacity
           reqdBrFixups=[]
-          reqdStringFixupsInMethod=[]
           availBrFixups = Dictionary<_, _>(10, HashIdentity.Structural)
         }
 
@@ -166,11 +162,6 @@ type CodeBuffer =
     member codebuf.EmitInt64 x = codebuf.code.EmitInt64 x
 
     member codebuf.EmitUncodedToken u = codebuf.EmitInt32 u
-
-    member codebuf.RecordReqdStringFixup stringIdx =
-        codebuf.reqdStringFixupsInMethod <- (codebuf.code.Position, stringIdx) :: codebuf.reqdStringFixupsInMethod
-        // Write a special value in that we check later when applying the fixup
-        codebuf.EmitInt32 0xdeadbeef
 
     member codebuf.RecordReqdBrFixups i tgs =
         codebuf.reqdBrFixups <- (i, codebuf.code.Position, tgs) :: codebuf.reqdBrFixups
@@ -204,7 +195,7 @@ module Codebuf =
                 if c = 0 then i elif c < 0 then go n (i-1) else go (i+1) m
         go 0 (Array.length arr)
 
-    let applyBrFixups (origCode : byte[]) origExnClauses origReqdStringFixups (origAvailBrFixups: Dictionary<ILCodeLabel, int>) origReqdBrFixups =
+    let applyBrFixups (origCode : byte[]) origExnClauses (origAvailBrFixups: Dictionary<ILCodeLabel, int>) origReqdBrFixups =
       let orderedOrigReqdBrFixups = origReqdBrFixups |> List.sortBy (fun (_, fixupLoc, _) -> fixupLoc)
 
       use newCode = ByteBuffer.Create origCode.Length
@@ -322,7 +313,6 @@ module Codebuf =
           for KeyValue(tglab, origBrDest) in origAvailBrFixups do
               tab[tglab] <- adjuster origBrDest
           tab
-      let newReqdStringFixups = List.map (fun (origFixupLoc, stok) -> adjuster origFixupLoc, stok) origReqdStringFixups
       let newExnClauses =
           origExnClauses |> List.map (fun (st1, sz1, st2, sz2, kind) ->
               (adjuster st1, (adjuster (st1 + sz1) - adjuster st1),
@@ -344,7 +334,7 @@ module Codebuf =
                   applyFixup32 newCode newFixupLoc relOffset
           | _ -> failwith ("target " + formatCodeLabel tg + " not found in new fixups"))
 
-      newCode, newReqdStringFixups, newExnClauses
+      newCode, newExnClauses
 
     // --------------------------------------------------------------------
     // Structured residue of emitting instructions: SEH exception handling
@@ -772,20 +762,19 @@ module Codebuf =
         emitCode codebuf code
         let origCode = codebuf.code.AsMemory().ToArray()
         let origExnClauses = List.rev codebuf.seh
-        let origReqdStringFixups = codebuf.reqdStringFixupsInMethod
         let origAvailBrFixups = codebuf.availBrFixups
         let origReqdBrFixups = codebuf.reqdBrFixups
 
-        let newCode, newReqdStringFixups, newExnClauses =
-            applyBrFixups origCode origExnClauses origReqdStringFixups origAvailBrFixups origReqdBrFixups
+        let newCode, newExnClauses =
+            applyBrFixups origCode origExnClauses origAvailBrFixups origReqdBrFixups
 
-        (newReqdStringFixups, newExnClauses, newCode)
+        (newExnClauses, newCode)
 
 
 let GenILMethodBody mname (il: ILMethodBody) =
 
 
-    let requiredStringFixups, seh, code = Codebuf.EmitMethodCode mname il.Code
+    let seh, code = Codebuf.EmitMethodCode mname il.Code
     let codeSize = code.Length
     use methbuf = ByteBuffer.Create (codeSize * 3)
     // Do we use the tiny format?
@@ -793,11 +782,10 @@ let GenILMethodBody mname (il: ILMethodBody) =
         // Use Tiny format
         let alignedCodeSize = align 4 (codeSize + 1)
         let codePadding = (alignedCodeSize - (codeSize + 1))
-        let requiredStringFixups' = (1, requiredStringFixups)
         methbuf.EmitByte (byte codeSize <<< 2 ||| e_CorILMethod_TinyFormat)
         methbuf.EmitBytes code
         methbuf.EmitPadding codePadding
-        0x0, (requiredStringFixups', methbuf.AsMemory().ToArray())
+        methbuf.AsMemory().ToArray()
     else
         // Use Fat format
         let flags =
@@ -870,6 +858,4 @@ let GenILMethodBody mname (il: ILMethodBody) =
                     methbuf.EmitInt32 sz2
                     methbuf.EmitInt32 (kindAsExtraInt32 kind))
 
-        let requiredStringFixups' = (12, requiredStringFixups)
-
-        localToken, (requiredStringFixups', methbuf.AsMemory().ToArray())
+        methbuf.AsMemory().ToArray()
