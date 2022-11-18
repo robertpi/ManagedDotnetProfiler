@@ -228,10 +228,9 @@ namespace ManagedDotnetProfiler
                 var message = "Hello from profiler!";
                 var mdString = moduleMetadata.DefineUserString(message);
 
-                // can't find our method ref, *sob*
-                // var mdMethodRef = moduleMetadata.GetMethodRef("System.Console", "WriteLine");
+                var mdMethodRef = moduleMetadata.GetMethodRef("System.Console", "System.Console", "WriteLine");
 
-                var newMethodBody = ILTransforms.Transform(instrs => ILTransforms.AddStringCall(mdString.Value, 0x0A00000C, instrs), methodBody.ParsedMethodBody);
+                var newMethodBody = ILTransforms.Transform(instrs => ILTransforms.AddStringCall(mdString.Value, mdMethodRef.Value, instrs), methodBody.ParsedMethodBody);
                 methodMetadata.SetParsedBody(_corProfilerInfo, newMethodBody);
             }
 

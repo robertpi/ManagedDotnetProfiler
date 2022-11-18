@@ -2,6 +2,10 @@
 
 open ProfilerAbstractIL.IL
 
+// The following is just a toy transformation, it only works if they're no exception handlers.
+// A considerable amount of effort is need to provide a set of robust transformations,
+// but I believe it is possible!
+
 type InstrsTransform = delegate of ILInstr[] -> ILInstr[]
 
 let Transform (f: InstrsTransform) (body: ILMethodBody) = 

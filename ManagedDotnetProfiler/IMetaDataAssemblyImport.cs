@@ -63,7 +63,7 @@ internal unsafe interface IMetaDataAssemblyImport: IUnknown
 
     HResult  EnumAssemblyRefs(            // S_OK or error
         HCORENUM* phEnum,                // [IN|OUT] Pointer to the enum.
-        MdAssemblyRef[] rAssemblyRefs,      // [OUT] Put AssemblyRefs here.
+        MdAssemblyRef* rAssemblyRefs,      // [OUT] Put AssemblyRefs here.
         ulong cMax,                   // [IN] Max AssemblyRefs to put.
         ulong       *pcTokens);        // [OUT] Put # put here.
 

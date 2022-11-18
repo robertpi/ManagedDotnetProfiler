@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using static ProfilerAbstractIL.IL.ILFieldInit;
@@ -94,13 +95,46 @@ namespace ManagedDotnetProfiler
         }
 
         // TODO add some way of representing the signature
-        public unsafe MdMemberRef GetMethodRef(string typeName, string methodName)
+        public unsafe MdMemberRef GetMethodRef(string assemblyName, string typeName, string methodName)
         {
+            HCORENUM emumerator;
+            MdAssemblyRef currentAssemblyRef = default;
+            Span<char> nameBuffer = stackalloc char[NameMaxSize];
+            while (true)
+            {
+                ulong count;
+                var hr = AssemblyImport.EnumAssemblyRefs(&emumerator, &currentAssemblyRef, 1, &count);
+                if (count == 0)
+                {
+                    break;
+                }
+
+                void* publicKeyToken;
+                ulong pktSize = 0;
+                ulong cchName = 0;
+                ASSEMBLYMETADATA curMD = default;
+
+                fixed (char* p = nameBuffer)
+                {
+                    hr = AssemblyImport.GetAssemblyRefProps(currentAssemblyRef, &publicKeyToken, &pktSize, p,
+                                                                              NameMaxSize, &cchName, &curMD,
+                                                                              null /*ppbHashValue*/, null /*pcbHashValue*/,
+                                                                              null /*pdwAssemblyRefFlags*/);
+
+                }
+
+                var name = new string(nameBuffer[..(int)cchName]);
+
+                if (name == assemblyName)
+                {
+                    break;
+                }
+            }
+
             MdTypeRef typeRef;
             fixed (char* tn = typeName)
             {
-                var hresult = Import.FindTypeRef(new MdToken(AssemblyToken.Value), tn, out typeRef);
-                Console.WriteLine($"ModuleToken: {AssemblyToken.Value:x2} - FindTypeRef: {hresult.Value:x2}");
+                var hresult = Import.FindTypeRef(new MdToken(currentAssemblyRef.Value), tn, out typeRef);
             }
             var sigBlob = new byte[] 
             {
