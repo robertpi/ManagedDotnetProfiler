@@ -2,8 +2,8 @@
 
 Implementation of a .NET profiler in C# with NativeAOT, fork of work by @kevingosse
 
-This fork uses an adapted version of [F#]:(https://github.com/dotnet/fsharp)'s 
-[AbstractIL]:(https://github.com/dotnet/fsharp/tree/main/src/Compiler/AbstractIL) library to 
+This fork uses an adapted version of [F#](https://github.com/dotnet/fsharp)'s 
+[AbstractIL](https://github.com/dotnet/fsharp/tree/main/src/Compiler/AbstractIL) library to 
 parse and and transform the method bodies from the profile.
 
 The adaptations to AbstractIL are necessary as, like most IL processing libraries, AbstractIL 
