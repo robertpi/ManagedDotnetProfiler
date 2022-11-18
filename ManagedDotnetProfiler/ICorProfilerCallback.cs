@@ -3,7 +3,7 @@
 namespace ManagedDotnetProfiler;
 
 [GenerateNativeStub]
-public unsafe interface ICorProfilerCallback : IUnknown
+internal unsafe interface ICorProfilerCallback : IUnknown
 {
     HResult Initialize(IntPtr pICorProfilerInfoUnk);
 

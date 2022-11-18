@@ -3,7 +3,7 @@
 namespace ManagedDotnetProfiler;
 
 [GenerateNativeStub]
-public unsafe interface ICorProfilerInfo : IUnknown
+internal unsafe interface ICorProfilerInfo : IUnknown
 {
     /*
  * The code profiler calls GetClassFromObject to obtain the ClassId of an

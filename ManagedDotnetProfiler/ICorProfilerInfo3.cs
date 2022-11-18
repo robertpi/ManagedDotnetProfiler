@@ -1,7 +1,7 @@
 ﻿namespace ManagedDotnetProfiler;
 
 [GenerateNativeStub]
-public unsafe interface ICorProfilerInfo3 : ICorProfilerInfo2
+internal unsafe interface ICorProfilerInfo3 : ICorProfilerInfo2
 {
     /*
  * Returns an enumerator for all previously jitted functions. May overlap with

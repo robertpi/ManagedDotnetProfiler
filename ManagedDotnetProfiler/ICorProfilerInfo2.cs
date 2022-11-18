@@ -1,7 +1,7 @@
 ﻿namespace ManagedDotnetProfiler;
 
 [GenerateNativeStub]
-public unsafe interface ICorProfilerInfo2 : ICorProfilerInfo
+internal unsafe interface ICorProfilerInfo2 : ICorProfilerInfo
 {
     /*
      * The code profiler calls DoStackSnapshot to do sparse one-off stack snapshots.

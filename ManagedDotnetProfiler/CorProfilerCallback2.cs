@@ -16,6 +16,7 @@ namespace ManagedDotnetProfiler
         private readonly object _syncRoot = new();
         private readonly NativeStubs.ICorProfilerCallback2Stub _corProfilerCallback2;
         private readonly Dictionary<ModuleId, ModuleMetadata> _moduleMetadataTable = new();
+        private readonly Dictionary<string, ModuleMetadata> _assemblyNameToModuleMetadataTable = new();
 
         private ICorProfilerInfo3 _corProfilerInfo;
 
@@ -153,6 +154,7 @@ namespace ManagedDotnetProfiler
                 lock (_syncRoot)
                 {
                     _moduleMetadataTable.Add(moduleId, moduleMetadata);
+                    _assemblyNameToModuleMetadataTable.Add(moduleMetadata.AssemblyName, moduleMetadata);
                 }
             }
 
@@ -216,37 +218,21 @@ namespace ManagedDotnetProfiler
 
             var methodMetadata =  moduleMetadata.GetMethodMetadata(new MdMethodDef(mdToken));
 
+            Console.WriteLine("methodMetadata.FullyQualifiedName: " + methodMetadata.FullyQualifiedName);
+
+
             if (methodMetadata.FullyQualifiedName.Contains("<Main>"))
             {
-                var message = "Hello from profiler!";
-                var length = Encoding.Unicode.GetByteCount(message);
-                nint ptr = Marshal.AllocHGlobal(length);
-                var messageBytes = Encoding.Unicode.GetBytes(message);
-                Utils.ArrayToBuffer(messageBytes, (byte*)ptr);
-                MdString mdString = default;
-                Console.WriteLine($"DefineUserString - before");
-                moduleMetadata.Emit.DefineUserString((char*)ptr, (uint)length / 2, &mdString);
-                Console.WriteLine($"DefineUserString: {mdString}");
-
-                var x = mdString.Value;
-
                 var methodBody = methodMetadata.GetParsedBody(_corProfilerInfo);
 
-                var newMethodBody = ILTransforms.Transform(instrs => ILTransforms.AddStringCall(x, 0X0A00000C, instrs), methodBody.ParsedMethodBody);
+                var message = "Hello from profiler!";
+                var mdString = moduleMetadata.DefineUserString(message);
 
-                var newBodyArray = ILBinaryWriter.GenILMethodBody(methodMetadata.Name, newMethodBody);
+                // can't find our method ref, *sob*
+                // var mdMethodRef = moduleMetadata.GetMethodRef("System.Console", "WriteLine");
 
-                var hresult = _corProfilerInfo.GetILFunctionBodyAllocator(moduleId, out var allocatorPtr);
-                Console.WriteLine($"GetILFunctionBodyAllocator {hresult}");
-
-                var allocator = NativeStubs.IMethodMallocStub.Wrap(allocatorPtr);
-
-                var bodyBuffer = allocator.Alloc((ulong)newBodyArray.LongLength);
-                Utils.ArrayToBuffer(newBodyArray, bodyBuffer);
-
-                hresult = _corProfilerInfo.SetILFunctionBody(moduleId, methodMetadata.MethodDef, bodyBuffer);
-                Console.WriteLine($"SetILFunctionBody {hresult}");
-
+                var newMethodBody = ILTransforms.Transform(instrs => ILTransforms.AddStringCall(mdString.Value, 0x0A00000C, instrs), methodBody.ParsedMethodBody);
+                methodMetadata.SetParsedBody(_corProfilerInfo, newMethodBody);
             }
 
             return HResult.S_OK;

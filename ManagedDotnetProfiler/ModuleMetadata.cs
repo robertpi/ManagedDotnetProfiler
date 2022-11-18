@@ -19,17 +19,41 @@ namespace ManagedDotnetProfiler
             AssemblyId = assemblyId;
             BaseAddress = baseAddress;
 
-            GetAssemblyInfo(assemblyImport, out var assemblyName, out var version);
+            GetAssemblyInfo(assemblyImport, out var assemblyName, out var version, out var mdAssembly);
 
             AssemblyName = assemblyName;
             AssemblyVersion = version;
+            // this doesn't seem to work either;
+            AssemblyToken = mdAssembly;
 
+            // this doesn't seem to work, always give 1;
+            var hresult = import.GetModuleFromScope(out var mdModule);
+            ModuleToken = mdModule;
+            Console.WriteLine($"ModuleToken: {ModuleToken.Value:x2}, hresult: {hresult.Value:x2}");
         }
 
-        private unsafe static void GetAssemblyInfo(IMetaDataAssemblyImport assemblyImport, out string assemblyName, out Version version)
+        // could these be made private, so this class hides some of the nastiness using them?
+        public IMetaDataImport Import { get; }
+        public IMetaDataAssemblyImport AssemblyImport { get; }
+        public IMetaDataEmit Emit { get; }
+
+
+        public ModuleId ModuleId { get; }
+        public MdModule ModuleToken { get; }
+        public string ModuleName { get; }
+        public AssemblyId AssemblyId { get; }
+        public MdAssembly AssemblyToken { get; }
+        public nint BaseAddress { get; }
+        public string AssemblyName { get; }
+        public Version AssemblyVersion { get; }
+
+        private unsafe static void GetAssemblyInfo(IMetaDataAssemblyImport assemblyImport, out string assemblyName, out Version version, out MdAssembly mdAssembly)
         {
             MdAssembly current = default;
             var hr = assemblyImport.GetAssemblyFromScope(&current);
+            Console.WriteLine($"GetAssemblyFromScope: {current.Value:x2}, hresult: {hr:x2}");
+
+            mdAssembly = current;
 
             Span<char> nameBuffer = stackalloc char[NameMaxSize];
             ulong nameLen = 0;
@@ -45,18 +69,6 @@ namespace ManagedDotnetProfiler
             version = new Version(assemblyMetadata.usMajorVersion, assemblyMetadata.usMinorVersion, assemblyMetadata.usRevisionNumber, assemblyMetadata.usRevisionNumber);
         }
 
-        // could these be made private, so this class hides some of the nastiness using them?
-        public IMetaDataImport Import { get; }
-        public IMetaDataAssemblyImport AssemblyImport { get; }
-        public IMetaDataEmit Emit { get; }
-
-
-        public ModuleId ModuleId { get; }
-        public string ModuleName { get; }
-        public AssemblyId AssemblyId { get; }
-        public nint BaseAddress { get; }
-        public string AssemblyName { get; }
-        public Version AssemblyVersion { get; }
 
         public unsafe MethodMetadata GetMethodMetadata(MdMethodDef methodToken) 
         {
@@ -79,6 +91,36 @@ namespace ManagedDotnetProfiler
             var typeName = new string(buffer[..(int)size]);
 
             return new MethodMetadata(this, methodToken, methodName, typeDef, typeName);
+        }
+
+        // TODO add some way of representing the signature
+        public unsafe MdMemberRef GetMethodRef(string typeName, string methodName)
+        {
+            MdTypeRef typeRef;
+            fixed (char* tn = typeName)
+            {
+                var hresult = Import.FindTypeRef(new MdToken(AssemblyToken.Value), tn, out typeRef);
+                Console.WriteLine($"ModuleToken: {AssemblyToken.Value:x2} - FindTypeRef: {hresult.Value:x2}");
+            }
+            var sigBlob = new byte[] 
+            {
+                (byte)CorCallingConvention.IMAGE_CEE_CS_CALLCONV_DEFAULT,
+                0x01, // number parameters
+                (byte)CorElementType.ELEMENT_TYPE_VOID, // return type
+                (byte)CorElementType.ELEMENT_TYPE_STRING, // first parameter
+            };
+
+            MdMemberRef memRefToken;
+            fixed (char* mn = methodName)
+            {
+                fixed (byte* sb = sigBlob)
+                {
+                    var hresult = Import.FindMemberRef(typeRef, mn, (nint*)sb, (uint)sigBlob.Length, out memRefToken);
+                    Console.WriteLine($"FindMemberRef: {hresult.Value:x2}");
+                }
+            }
+
+            return memRefToken;
         }
 
         public unsafe MdString DefineUserString(string message)
