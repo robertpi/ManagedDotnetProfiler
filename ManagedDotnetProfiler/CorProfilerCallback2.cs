@@ -214,49 +214,15 @@ namespace ManagedDotnetProfiler
                 return HResult.S_OK;
             }
 
-            var methodToken = new MdMethodDef(mdToken);
-            var hresult = moduleMetadata.Import.GetMethodProps(methodToken, out var typeDef, null, 0, out var size, out _, out _, out _, out _, out _);
+            var methodMetadata =  moduleMetadata.GetMethodMetadata(new MdMethodDef(mdToken));
 
-            var buffer = new char[size];
-
-            fixed (char* p = buffer)
-            {
-                moduleMetadata.Import.GetMethodProps(new MdMethodDef(mdToken), out _, p, size, out _, out _, out _, out _, out _, out _);
-            }
-
-            var methodName = new string(buffer);
-
-            hresult = moduleMetadata.Import.GetTypeDefProps(typeDef, null, 0, out size, out _, out _);
-
-            buffer = new char[size];
-
-            fixed (char* p = buffer)
-            {
-                hresult = moduleMetadata.Import.GetTypeDefProps(typeDef, p, size, out _, out _, out _);
-            }
-
-            hresult = _corProfilerInfo.GetILFunctionBody(moduleId, methodToken, out byte* body, out uint methodSize);
-
-            var typeName = new string(buffer);
-
-            byte[] bodyArray = BufferToArray(body, methodSize);
-            var methodSizeInt = (int)methodSize;
-            var pev = new ReadOnlyByteMemory(new ByteArrayMemory(bodyArray, 0, methodSizeInt));
-            var methodBody = ILReader.seekReadMethodRVA(pev, methodName);
-
-            var instrs = methodBody.Code.Instrs;
-
-            var name = $"{typeName}.{methodName}";
-
-            Console.WriteLine($"[Profiler] JITCompilationStarted: {name} - instrs.Length {instrs.Length}");
-
-            if (name.Contains("<Main>"))
+            if (methodMetadata.FullyQualifiedName.Contains("<Main>"))
             {
                 var message = "Hello from profiler!";
                 var length = Encoding.Unicode.GetByteCount(message);
                 nint ptr = Marshal.AllocHGlobal(length);
                 var messageBytes = Encoding.Unicode.GetBytes(message);
-                ArrayToBuffer(messageBytes, (byte*)ptr);
+                Utils.ArrayToBuffer(messageBytes, (byte*)ptr);
                 MdString mdString = default;
                 Console.WriteLine($"DefineUserString - before");
                 moduleMetadata.Emit.DefineUserString((char*)ptr, (uint)length / 2, &mdString);
@@ -264,62 +230,26 @@ namespace ManagedDotnetProfiler
 
                 var x = mdString.Value;
 
-                var newMethodBody = ILTransforms.Transform(instrs => ILTransforms.AddStringCall(x, 0X0A00000C, instrs), methodBody);
+                var methodBody = methodMetadata.GetParsedBody(_corProfilerInfo);
 
-                var newBodyArray = ILBinaryWriter.GenILMethodBody(name, newMethodBody);
+                var newMethodBody = ILTransforms.Transform(instrs => ILTransforms.AddStringCall(x, 0X0A00000C, instrs), methodBody.ParsedMethodBody);
 
-                Console.WriteLine($"bodyArray.Length: {bodyArray.Length}, newBodyArray.Length: {newBodyArray.Length}");
+                var newBodyArray = ILBinaryWriter.GenILMethodBody(methodMetadata.Name, newMethodBody);
 
-                // debug code for body
-                //for (int i = 0; i < Math.Min(bodyArray.Length, newBodyArray.Length); i++)
-                //{
-                //    Console.WriteLine($"{bodyArray[i]} {newBodyArray[i]} {bodyArray[i] == newBodyArray[i]}");
-                //}
-
-                hresult = _corProfilerInfo.GetILFunctionBodyAllocator(moduleId, out var allocatorPtr);
+                var hresult = _corProfilerInfo.GetILFunctionBodyAllocator(moduleId, out var allocatorPtr);
                 Console.WriteLine($"GetILFunctionBodyAllocator {hresult}");
 
                 var allocator = NativeStubs.IMethodMallocStub.Wrap(allocatorPtr);
 
-                Console.WriteLine($"allocator.Alloc - before");
-
                 var bodyBuffer = allocator.Alloc((ulong)newBodyArray.LongLength);
+                Utils.ArrayToBuffer(newBodyArray, bodyBuffer);
 
-                Console.WriteLine($"allocator.Alloc - done");
-
-                ArrayToBuffer(newBodyArray, bodyBuffer);
-                for (int j = 0; j < newBodyArray.Length; j++)
-                {
-                    bodyBuffer[j] = newBodyArray[j];
-                }
-
-                Console.WriteLine($"copied bytes to buffer");
-
-                hresult = _corProfilerInfo.SetILFunctionBody(moduleId, methodToken, bodyBuffer);
+                hresult = _corProfilerInfo.SetILFunctionBody(moduleId, methodMetadata.MethodDef, bodyBuffer);
                 Console.WriteLine($"SetILFunctionBody {hresult}");
 
             }
 
             return HResult.S_OK;
-        }
-
-        private static byte[] BufferToArray(byte* inBuffer, uint length)
-        {
-            var outArray = new byte[length];
-            for (int i = 0; i < length; i++)
-            {
-                outArray[i] = inBuffer[i];
-            }
-
-            return outArray;
-        }
-
-        private static void ArrayToBuffer(byte[] inArray, byte* outBuffer)
-        {
-            for (int i = 0; i < inArray.Length; i++)
-            {
-                outBuffer[i] = inArray[i];
-            }
         }
 
         public HResult JITCompilationFinished(FunctionId functionId, HResult hrStatus, bool fIsSafeToBlock)

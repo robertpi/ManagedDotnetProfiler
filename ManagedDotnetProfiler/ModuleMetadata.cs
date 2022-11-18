@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 using static ProfilerAbstractIL.IL.ILFieldInit;
 
 namespace ManagedDotnetProfiler
@@ -49,14 +45,52 @@ namespace ManagedDotnetProfiler
             version = new Version(assemblyMetadata.usMajorVersion, assemblyMetadata.usMinorVersion, assemblyMetadata.usRevisionNumber, assemblyMetadata.usRevisionNumber);
         }
 
-        public ModuleId ModuleId { get; }
+        // could these be made private, so this class hides some of the nastiness using them?
         public IMetaDataImport Import { get; }
         public IMetaDataAssemblyImport AssemblyImport { get; }
         public IMetaDataEmit Emit { get; }
+
+
+        public ModuleId ModuleId { get; }
         public string ModuleName { get; }
         public AssemblyId AssemblyId { get; }
         public nint BaseAddress { get; }
         public string AssemblyName { get; }
         public Version AssemblyVersion { get; }
+
+        public unsafe MethodMetadata GetMethodMetadata(MdMethodDef methodToken) 
+        {
+            var hresult = Import.GetMethodProps(methodToken, out var typeDef, null, 0, out var size, out _, out _, out _, out _, out _);
+
+            Span<char> buffer = stackalloc char[NameMaxSize];
+
+            fixed (char* p = buffer)
+            {
+                Import.GetMethodProps(methodToken, out _, p, size, out size, out _, out _, out _, out _, out _);
+            }
+
+            var methodName = new string(buffer[..(int)size]);
+
+            fixed (char* p = buffer)
+            {
+                hresult = Import.GetTypeDefProps(typeDef, p, size, out _, out _, out _);
+            }
+
+            var typeName = new string(buffer[..(int)size]);
+
+            return new MethodMetadata(this, methodToken, methodName, typeDef, typeName);
+        }
+
+        public unsafe MdString DefineUserString(string message)
+        {
+            var length = Encoding.Unicode.GetByteCount(message);
+            nint ptr = Marshal.AllocHGlobal(length);
+            var messageBytes = Encoding.Unicode.GetBytes(message);
+            Utils.ArrayToBuffer(messageBytes, (byte*)ptr);
+            MdString mdString = default;
+            Emit.DefineUserString((char*)ptr, (uint)length / 2, &mdString);
+            Marshal.FreeHGlobal(ptr);
+            return mdString;
+        }
     }
 }
