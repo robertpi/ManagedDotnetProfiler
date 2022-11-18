@@ -1,6 +1,6 @@
 # ManagedDotnetProfiler
 
-Implementation of a .NET profiler in C# with NativeAOT, fork of work by @kevingosse
+Implementation of a .NET profiler in C# with NativeAOT, fork of work by [Kevin Gosse](https://github.com/kevingosse)
 
 This fork uses an adapted version of [F#](https://github.com/dotnet/fsharp)'s 
 [AbstractIL](https://github.com/dotnet/fsharp/tree/main/src/Compiler/AbstractIL) library to 
