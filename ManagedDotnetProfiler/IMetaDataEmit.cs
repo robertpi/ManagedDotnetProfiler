@@ -133,7 +133,7 @@ internal unsafe interface IMetaDataEmit : IUnknown
         uint ulRVA);            // [IN] The offset
 
     HResult GetTokenFromSig(             // S_OK or error.
-        nint* pvSig,              // [IN] Signature to define.
+        byte* pvSig,              // [IN] Signature to define.
         uint cbSig,                  // [IN] Size of signature data.
         MdSignature* pmsig);           // [OUT] returned signature token.
 
@@ -147,7 +147,7 @@ internal unsafe interface IMetaDataEmit : IUnknown
         MdToken tk);               // [IN] The ref parent.
 
     HResult GetTokenFromTypeSpec(        // S_OK or error.
-        nint* pvSig,              // [IN] TypeSpec Signature to define.
+        byte* pvSig,              // [IN] TypeSpec Signature to define.
         uint cbSig,                  // [IN] Size of signature data.
         MdTypeSpec* ptypespec);        // [OUT] returned TypeSpec token.
 

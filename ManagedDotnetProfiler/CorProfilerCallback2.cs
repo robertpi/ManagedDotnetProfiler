@@ -218,7 +218,7 @@ namespace ManagedDotnetProfiler
 
             var methodMetadata =  moduleMetadata.GetMethodMetadata(new MdMethodDef(mdToken));
 
-            Console.WriteLine("methodMetadata.FullyQualifiedName: " + methodMetadata.FullyQualifiedName);
+            // Console.WriteLine("methodMetadata.FullyQualifiedName: " + methodMetadata.FullyQualifiedName);
 
 
             if (methodMetadata.FullyQualifiedName.Contains("<Main>"))
@@ -230,7 +230,26 @@ namespace ManagedDotnetProfiler
 
                 var mdMethodRef = moduleMetadata.GetMethodRef("System.Console", "System.Console", "WriteLine");
 
-                var newMethodBody = ILTransforms.Transform(instrs => ILTransforms.AddStringCall(mdString.Value, mdMethodRef.Value, instrs), methodBody.ParsedMethodBody);
+                delegate*<string, string> ptr = &TargetClass.TargetMethod;
+                var sigBlob = new byte[]
+                {
+                    (byte)CorCallingConvention.IMAGE_CEE_CS_CALLCONV_DEFAULT,
+                    0x01, // number parameters
+                    (byte)CorElementType.ELEMENT_TYPE_STRING, // return type
+                    (byte)CorElementType.ELEMENT_TYPE_STRING, // return type
+                };
+
+                MdSignature sigToken = default;
+                fixed (byte* p = sigBlob)
+                {
+                    moduleMetadata.Emit.GetTokenFromSig(p, (uint)sigBlob.Length, &sigToken);
+                }
+                var sigToken2 = sigToken;
+
+                nint nintPtr = (nint)ptr;
+                Console.WriteLine($"ptr: {nintPtr:x2}, sigToken2.Value: {sigToken2.Value:x2}");
+
+                var newMethodBody = ILTransforms.Transform(instrs => ILTransforms.AddStringCall(mdString.Value, mdMethodRef.Value, nintPtr, sigToken2.Value, instrs), methodBody.ParsedMethodBody);
                 methodMetadata.SetParsedBody(_corProfilerInfo, newMethodBody);
             }
 
@@ -393,50 +412,50 @@ namespace ManagedDotnetProfiler
         {
             Console.WriteLine("Enumerating modules");
 
-            _corProfilerInfo.EnumModules(out void* enumerator);
+            //_corProfilerInfo.EnumModules(out void* enumerator);
 
-            ICorProfilerModuleEnum moduleEnumerator = NativeStubs.ICorProfilerModuleEnumStub.Wrap((IntPtr)enumerator);
+            //ICorProfilerModuleEnum moduleEnumerator = NativeStubs.ICorProfilerModuleEnumStub.Wrap((IntPtr)enumerator);
 
-            moduleEnumerator.GetCount(out var modulesCount);
+            //moduleEnumerator.GetCount(out var modulesCount);
 
-            Console.WriteLine($"Fetching {modulesCount} modules");
+            //Console.WriteLine($"Fetching {modulesCount} modules");
 
-            var modules = new ModuleId[modulesCount];
+            //var modules = new ModuleId[modulesCount];
 
-            fixed (ModuleId* p = modules)
-            {
-                moduleEnumerator.Next(modulesCount, p, out modulesCount);
-            }
+            //fixed (ModuleId* p = modules)
+            //{
+            //    moduleEnumerator.Next(modulesCount, p, out modulesCount);
+            //}
 
-            Console.WriteLine($"Fetched {modulesCount} modules");
+            //Console.WriteLine($"Fetched {modulesCount} modules");
 
-            foreach (var module in modules)
-            {
-                ModuleMetadata moduleMetadata;
-                lock (_syncRoot)
-                {
-                    _moduleMetadataTable.TryGetValue(module, out moduleMetadata);
-                }
+            //foreach (var module in modules)
+            //{
+            //    ModuleMetadata moduleMetadata;
+            //    lock (_syncRoot)
+            //    {
+            //        _moduleMetadataTable.TryGetValue(module, out moduleMetadata);
+            //    }
 
-                Console.WriteLine($"Module: {moduleMetadata.ModuleName} loaded at address {moduleMetadata.BaseAddress:x2}");
-            }
+            //    Console.WriteLine($"Module: {moduleMetadata.ModuleName} loaded at address {moduleMetadata.BaseAddress:x2}");
+            //}
 
-            _corProfilerInfo.GetClassFromObject(thrownObjectId, out var classId);
-            _corProfilerInfo.GetClassIdInfo(classId, out var moduleId, out var typeDef);
-            _corProfilerInfo.GetModuleMetaData(moduleId, CorOpenFlags.ofRead, KnownGuids.IMetaDataImport, out void* ppOut);
+            //_corProfilerInfo.GetClassFromObject(thrownObjectId, out var classId);
+            //_corProfilerInfo.GetClassIdInfo(classId, out var moduleId, out var typeDef);
+            //_corProfilerInfo.GetModuleMetaData(moduleId, CorOpenFlags.ofRead, KnownGuids.IMetaDataImport, out void* ppOut);
 
-            var metaDataImport = NativeStubs.IMetaDataImportStub.Wrap((IntPtr)ppOut);
+            //var metaDataImport = NativeStubs.IMetaDataImportStub.Wrap((IntPtr)ppOut);
 
-            metaDataImport.GetTypeDefProps(typeDef, null, 0, out var nameCharCount, out _, out _);
+            //metaDataImport.GetTypeDefProps(typeDef, null, 0, out var nameCharCount, out _, out _);
 
-            Span<char> buffer = stackalloc char[(int)nameCharCount];
+            //Span<char> buffer = stackalloc char[(int)nameCharCount];
 
-            fixed (char* p = buffer)
-            {
-                metaDataImport.GetTypeDefProps(typeDef, p, nameCharCount, out _, out _, out _);
-            }
+            //fixed (char* p = buffer)
+            //{
+            //    metaDataImport.GetTypeDefProps(typeDef, p, nameCharCount, out _, out _, out _);
+            //}
 
-            Console.WriteLine("[Profiler] An exception was thrown: " + new string(buffer));
+            //Console.WriteLine("[Profiler] An exception was thrown: " + new string(buffer));
 
             return HResult.S_OK;
         }
@@ -467,37 +486,37 @@ namespace ManagedDotnetProfiler
 
         public HResult ExceptionSearchCatcherFound(FunctionId functionId)
         {
-            _corProfilerInfo.GetFunctionInfo(functionId, out var classId, out var moduleId, out var mdToken);
+            //_corProfilerInfo.GetFunctionInfo(functionId, out var classId, out var moduleId, out var mdToken);
 
-            _corProfilerInfo.GetModuleMetaData(moduleId, CorOpenFlags.ofRead, KnownGuids.IMetaDataImport, out var ppOut);
+            //_corProfilerInfo.GetModuleMetaData(moduleId, CorOpenFlags.ofRead, KnownGuids.IMetaDataImport, out var ppOut);
 
-            IMetaDataImport metaDataImport = NativeStubs.IMetaDataImportStub.Wrap((IntPtr)ppOut);
+            //IMetaDataImport metaDataImport = NativeStubs.IMetaDataImportStub.Wrap((IntPtr)ppOut);
 
-            metaDataImport.GetMethodProps(new MdMethodDef(mdToken), out _, null, 0, out var size, out _, out _, out _, out _, out _);
+            //metaDataImport.GetMethodProps(new MdMethodDef(mdToken), out _, null, 0, out var size, out _, out _, out _, out _, out _);
 
-            var buffer = new char[size];
+            //var buffer = new char[size];
 
-            MdTypeDef typeDef;
+            //MdTypeDef typeDef;
 
-            fixed (char* p = buffer)
-            {
-                metaDataImport.GetMethodProps(new MdMethodDef(mdToken), out typeDef, p, size, out _, out _, out _, out _, out _, out _);
-            }
+            //fixed (char* p = buffer)
+            //{
+            //    metaDataImport.GetMethodProps(new MdMethodDef(mdToken), out typeDef, p, size, out _, out _, out _, out _, out _, out _);
+            //}
 
-            metaDataImport.GetTypeDefProps(typeDef, null, 0, out size, out _, out _);
+            //metaDataImport.GetTypeDefProps(typeDef, null, 0, out size, out _, out _);
 
-            var methodName = new string(buffer);
+            //var methodName = new string(buffer);
 
-            buffer = new char[size];
+            //buffer = new char[size];
 
-            fixed (char* p = buffer)
-            {
-                metaDataImport.GetTypeDefProps(typeDef, p, size, out _, out _, out _);
-            }
+            //fixed (char* p = buffer)
+            //{
+            //    metaDataImport.GetTypeDefProps(typeDef, p, size, out _, out _, out _);
+            //}
 
-            var typeName = new string(buffer);
+            //var typeName = new string(buffer);
 
-            Console.WriteLine($"[Profiler] Exception was caught in {typeName}.{methodName}");
+            //Console.WriteLine($"[Profiler] Exception was caught in {typeName}.{methodName}");
             return HResult.S_OK;
         }
 

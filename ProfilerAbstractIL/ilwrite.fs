@@ -456,9 +456,7 @@ module Codebuf =
 
         | I_calli (tl, callsig, varargs) ->
             emitTailness codebuf tl
-            emitInstrCode codebuf i_calli
-            // TODO RP not sure what do here, but it's not a common instruction ...
-            // codebuf.EmitUncodedToken (getUncodedToken TableNames.StandAloneSig (GetCallsigAsStandAloneSigIdx cenv env (callsig, varargs)))
+            emitMethodSpecInstr codebuf i_calli (callsig, varargs)
             //emitAfterTailcall codebuf tl
 
         | I_ldarg u16 -> emitShortUInt16Instr codebuf (i_ldarg_s, i_ldarg) u16
