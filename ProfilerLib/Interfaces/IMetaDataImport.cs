@@ -1,9 +1,7 @@
-﻿using System;
+﻿namespace ProfilerLib.Interfaces;
 
-namespace ManagedDotnetProfiler;
-
-[GenerateNativeStub]
-internal unsafe interface IMetaDataImport : IUnknown
+[NativeObject]
+public unsafe interface IMetaDataImport : IUnknown
 {
     void CloseEnum(HCORENUM hEnum);
     HResult CountEnum(HCORENUM hEnum, uint* pulCount);

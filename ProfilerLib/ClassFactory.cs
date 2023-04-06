@@ -1,23 +1,27 @@
 ﻿using System;
+using ProfilerLib.Interfaces;
 
-namespace ManagedDotnetProfiler;
+namespace ProfilerLib;
 
-public unsafe class ClassFactory : IClassFactory
+public unsafe class ClassFactory : Interfaces.IClassFactory
 {
-    private NativeStubs.IClassFactoryStub _classFactory;
+    private NativeObjects.IClassFactory _classFactory;
 
-    private CorProfilerCallback2 _callback = new();
+    private CorProfilerCallbackBase _corProfilerCallback;
 
-    public ClassFactory()
+    public ClassFactory(CorProfilerCallbackBase corProfilerCallback)
     {
-        _classFactory = NativeStubs.IClassFactoryStub.Wrap(this);
+        _classFactory = NativeObjects.IClassFactory.Wrap(this);
+        _corProfilerCallback = corProfilerCallback;
     }
 
     public IntPtr IClassFactory => _classFactory;
 
     public HResult CreateInstance(IntPtr outer, in Guid guid, out IntPtr instance)
     {
-        instance = _callback.ICorProfilerCallback2Object;
+        Console.WriteLine("ClassFactory - CreateInstance - " + guid);
+
+        instance = _corProfilerCallback.ICorProfilerCallback;
         return HResult.S_OK;
 
         // return _callback.IUnknown.QueryInterface(_callback.IUnknownObject, guid, out instance);
@@ -45,11 +49,13 @@ public unsafe class ClassFactory : IClassFactory
 
     public int AddRef()
     {
+        Console.WriteLine("ClassFactory - AddRef");
         return 1;
     }
 
     public int Release()
     {
+        Console.WriteLine("ClassFactory - Release");
         return 0;
     }
 }

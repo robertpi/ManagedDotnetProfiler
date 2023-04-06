@@ -1,14 +1,14 @@
-﻿using System;
+﻿namespace ProfilerLib.Interfaces;
 
-namespace ManagedDotnetProfiler;
-
-[GenerateNativeStub]
+[NativeObject]
 internal unsafe interface ICorProfilerInfo : IUnknown
 {
+    public static readonly Guid Guid = new("28B5557D-3F3F-48b4-90B2-5F9EEA2F6C48");
+
     /*
- * The code profiler calls GetClassFromObject to obtain the ClassId of an
- * object given its ObjectId.
- */
+     * The code profiler calls GetClassFromObject to obtain the ClassId of an
+     * object given its ObjectId.
+     */
     HResult GetClassFromObject(
                 ObjectId ObjectId,
                 out ClassId pClassId);
@@ -235,7 +235,7 @@ internal unsafe interface ICorProfilerInfo : IUnknown
                 ModuleId ModuleId,
                 CorOpenFlags dwOpenFlags,
                 Guid riid,
-                out void* ppOut);
+                out IntPtr ppOut);
 
     /*
      * Retrieve a pointer to the body of a method starting at it's header.

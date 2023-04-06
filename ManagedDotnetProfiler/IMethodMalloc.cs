@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ProfilerLib.Interfaces;
 
 namespace ManagedDotnetProfiler;
 
-[GenerateNativeStub]
-public unsafe interface IMethodMalloc : IUnknown
+[NativeObject]
+internal unsafe interface IMethodMalloc : IUnknown
 {
     byte* Alloc(ulong cb);
 }

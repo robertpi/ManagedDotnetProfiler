@@ -1,8 +1,10 @@
-﻿namespace ManagedDotnetProfiler;
+﻿namespace ProfilerLib.Interfaces;
 
-[GenerateNativeStub]
+[NativeObject]
 internal unsafe interface ICorProfilerInfo2 : ICorProfilerInfo
 {
+    public new static readonly Guid Guid = new("CC0935CD-A518-487d-B0BB-A93214E65478");
+
     /*
      * The code profiler calls DoStackSnapshot to do sparse one-off stack snapshots.
      *

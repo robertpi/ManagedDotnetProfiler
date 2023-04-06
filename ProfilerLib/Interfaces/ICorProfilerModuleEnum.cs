@@ -1,7 +1,7 @@
-﻿namespace ManagedDotnetProfiler;
+﻿namespace ProfilerLib.Interfaces;
 
-[GenerateNativeStub]
-internal unsafe interface ICorProfilerModuleEnum : IUnknown
+[NativeObject]
+public unsafe interface ICorProfilerModuleEnum : IUnknown
 {
     HResult Skip(uint celt);
 

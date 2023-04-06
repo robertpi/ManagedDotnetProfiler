@@ -5,10 +5,13 @@ using System.Reflection.Metadata;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using ProfilerLib;
+using ProfilerLib.Interfaces;
+
 
 namespace ManagedDotnetProfiler;
 
-[GenerateNativeStub]
+[NativeObject]
 internal unsafe interface IMetaDataAssemblyImport: IUnknown
 {
     HResult  GetAssemblyProps(            // S_OK or error.
@@ -35,7 +38,7 @@ internal unsafe interface IMetaDataAssemblyImport: IUnknown
         uint* pdwAssemblyRefFlags); // [OUT] Flags.
 
     HResult  GetFileProps(                // S_OK or error.
-        MdFile mdf,                    // [IN] The File for which to get the properties.
+        int mdf,                    // [IN] The File for which to get the properties.
         char*      szName, // [OUT] Buffer to fill with name.
         ulong cchName,                // [IN] Size of buffer in wide chars.
         ulong       *pchName,               // [OUT] Actual # of wide chars in name.
@@ -44,7 +47,7 @@ internal unsafe interface IMetaDataAssemblyImport: IUnknown
         uint* pdwFileFlags);    // [OUT] Flags.
 
     HResult GetExportedTypeProps(        // S_OK or error.
-        MdExportedType mdct,              // [IN] The ExportedType for which to get the properties.
+        int mdct,              // [IN] The ExportedType for which to get the properties.
         char*      szName, // [OUT] Buffer to fill with name.
         ulong cchName,                // [IN] Size of buffer in wide chars.
         ulong* pchName,               // [OUT] Actual # of wide chars in name.
@@ -53,11 +56,11 @@ internal unsafe interface IMetaDataAssemblyImport: IUnknown
         uint* pdwExportedTypeFlags); // [OUT] Flags.
 
     HResult  GetManifestResourceProps(    // S_OK or error.
-        MdManifestResource mdmr,           // [IN] The ManifestResource for which to get the properties.
+        int mdmr,           // [IN] The ManifestResource for which to get the properties.
         char*      szName,  // [OUT] Buffer to fill with name.
         ulong cchName,                // [IN] Size of buffer in wide chars.
         ulong       *pchName,               // [OUT] Actual # of wide chars in name.
-        MdToken* ptkImplementation,     // [OUT] mdFile or mdAssemblyRef that provides the ManifestResource.
+        int* ptkImplementation,     // [OUT] mdFile or mdAssemblyRef that provides the ManifestResource.
         uint       *pdwOffset,             // [OUT] Offset to the beginning of the resource within the file.
         uint* pdwResourceFlags);// [OUT] Flags.
 
@@ -69,19 +72,19 @@ internal unsafe interface IMetaDataAssemblyImport: IUnknown
 
     HResult  EnumFiles(                   // S_OK or error
         HCORENUM* phEnum,                // [IN|OUT] Pointer to the enum.
-        MdFile[] rFiles,               // [OUT] Put Files here.
+        int* rFiles,               // [OUT] Put Files here.
         ulong cMax,                   // [IN] Max Files to put.
         ulong       *pcTokens);        // [OUT] Put # put here.
 
     HResult  EnumExportedTypes(           // S_OK or error
         HCORENUM* phEnum,                // [IN|OUT] Pointer to the enum.
-        MdExportedType[] rExportedTypes,  // [OUT] Put ExportedTypes here.
+        int* rExportedTypes,  // [OUT] Put ExportedTypes here.
         ulong cMax,                   // [IN] Max ExportedTypes to put.
         ulong       *pcTokens);        // [OUT] Put # put here.
 
     HResult  EnumManifestResources(       // S_OK or error
         HCORENUM* phEnum,                // [IN|OUT] Pointer to the enum.
-        MdManifestResource[] rManifestResources,   // [OUT] Put ManifestResources here.
+        int* rManifestResources,   // [OUT] Put ManifestResources here.
         ulong cMax,                   // [IN] Max Resources to put.
         ulong       *pcTokens);        // [OUT] Put # put here.
 

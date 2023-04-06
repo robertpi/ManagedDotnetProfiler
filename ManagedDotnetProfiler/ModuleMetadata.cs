@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using static ProfilerAbstractIL.IL.ILFieldInit;
+using ProfilerLib;
 
 namespace ManagedDotnetProfiler
 {
@@ -72,7 +73,7 @@ namespace ManagedDotnetProfiler
         }
 
 
-        public unsafe MethodMetadata GetMethodMetadata(MdMethodDef methodToken) 
+        public unsafe MethodMetadata GetMethodMetadata(MdMethodDef methodToken)
         {
             var hresult = Import.GetMethodProps(methodToken, out var typeDef, null, 0, out var size, out _, out _, out _, out _, out _);
 
@@ -137,7 +138,7 @@ namespace ManagedDotnetProfiler
             {
                 var hresult = Import.FindTypeRef(new MdToken(currentAssemblyRef.Value), tn, out typeRef);
             }
-            var sigBlob = new byte[] 
+            var sigBlob = new byte[]
             {
                 (byte)CorCallingConvention.IMAGE_CEE_CS_CALLCONV_DEFAULT,
                 0x01, // number parameters

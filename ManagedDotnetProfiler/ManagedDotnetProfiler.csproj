@@ -4,6 +4,7 @@
     <TargetFramework>net7.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <PublishAot>true</PublishAot>
   </PropertyGroup>
 
 	<ItemGroup>
@@ -13,5 +14,6 @@
 	<ItemGroup>
 	  <ProjectReference Include="..\ProfilerAbstractIL\ProfilerAbstractIL.fsproj" />
 	  <ProjectReference Include="..\NativeStubSourceGenerator\NativeStubSourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+	  <ProjectReference Include="..\ProfilerLib\ProfilerLib.csproj" />
 	</ItemGroup>
 </Project>

@@ -1,72 +1,49 @@
 ﻿using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace NativeStubSourceGenerator
+namespace NativeStubSourceGenerator;
+
+[Generator]
+public class NativeObjectGenerator : IIncrementalGenerator
 {
-    [Generator]
-    public class NativeStubGenerator : ISourceGenerator
+    public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        private static bool _start = true;
-
-        public static void Log(string text)
+        var provider = context.SyntaxProvider.ForAttributeWithMetadataName("NativeObjectAttribute", static (_, _) => true, Transform);
+        context.RegisterSourceOutput(provider, static (ctx, result) => ctx.AddSource($"{result.Name}.g.cs", result.Source));
+        context.RegisterPostInitializationOutput(static ctx =>
         {
-            //const string logFile = @"E:\log\log.txt";
+            ctx.AddSource("NativeObjectAttribute.g.cs", @"using System;
 
-            //if (_start)
-            //{
-            //    if (File.Exists(logFile))
-            //    {
-            //        File.Delete(logFile);
-            //    }
+[AttributeUsage(AttributeTargets.Interface, Inherited = false, AllowMultiple = false)]
+internal class NativeObjectAttribute : Attribute { }");
+        });
+    }
 
-            //    _start = false;
-            //}
-
-            //File.AppendAllText(logFile, text + Environment.NewLine);
-        }
-
-        public void Execute(GeneratorExecutionContext context)
-        {
-            if (!(context.SyntaxContextReceiver is SyntaxReceiver receiver))
-            {
-                return;
-            }
-
-            foreach (var symbol in receiver.Interfaces)
-            {
-                EmitStubForInterface(context, symbol);
-            }
-        }
-
-        public void EmitStubForInterface(GeneratorExecutionContext context, INamedTypeSymbol symbol)
-        {
-            Log("Emitting stub for interface " + symbol.Name);
-
-            var sourceBuilder = new StringBuilder(@"
+    private static (string Name, string Source) Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
+    {
+        var sourceBuilder = new StringBuilder(@"
 using System;
 using System.Runtime.InteropServices;
 
-namespace NativeStubs
+namespace NativeObjects
 {
-    internal unsafe class {typeName}
+    {visibility} unsafe class {typeName} : IDisposable
     {
-{delegates}
         private {typeName}({interfaceName} implementation)
         {
-            var obj = Marshal.AllocHGlobal(IntPtr.Size);
-
-            var ptr = (IntPtr*)obj;
-
             const int delegateCount = {delegateCount};
 
-            int vtablePartSize = delegateCount * IntPtr.Size;
-            IntPtr* vtable = (IntPtr*)Marshal.AllocHGlobal(vtablePartSize);
-            *(void**)obj = vtable;
+            var vtable = (IntPtr*)NativeMemory.Alloc((nuint)delegateCount, (nuint)IntPtr.Size);
 
 {functionPointers}
 
-            Object = obj;
+            var obj = (IntPtr*)NativeMemory.Alloc((nuint)2, (nuint)IntPtr.Size);
+            *obj = (IntPtr)vtable;
+
+            var handle = GCHandle.Alloc(implementation);
+            *(obj + 1) = GCHandle.ToIntPtr(handle);
+
+            Object = (IntPtr)obj;
         }
 
         public IntPtr Object { get; private set; }
@@ -75,248 +52,296 @@ namespace NativeStubs
 
         public static implicit operator IntPtr({typeName} stub) => stub.Object;
 
-        public static {interfaceName} Wrap(IntPtr obj) => new {invokerName}(obj);
+        ~{typeName}()
+        {
+            Dispose();
+        }
 
         public void Dispose()
         {
-            var target = (IntPtr*)Object;
-            Marshal.FreeHGlobal(*(target));
-            Marshal.FreeHGlobal(Object);
-            Object = IntPtr.Zero;
-        }
-
-        private class {invokerName} : {interfaceName}
-        {
-            private readonly IntPtr _implementation;
-            private readonly nint* _vtable;
-
-            public {invokerName}(IntPtr implementation)
+            if (Object != IntPtr.Zero)
             {
-                _implementation = implementation;
-                _vtable = (nint*)*(nint*)implementation;
+                var target = (void**)Object;
+                NativeMemory.Free(*target);
+                NativeMemory.Free(target);
+                Object = IntPtr.Zero;
             }
 
-{invokerFunctions}
- 
+            GC.SuppressFinalize(this);
         }
-       
+
+        private static class Exports
+        {
+{exports}
+        }
+    }
+
+    public unsafe struct {invokerName}
+    {
+        private readonly IntPtr _implementation;
+
+        public {invokerName}(IntPtr implementation)
+        {
+            _implementation = implementation;
+        }
+
+        private nint* VTable => (nint*)*(nint*)_implementation;
+
+    {invokerFunctions}
+ 
     }
 }
 ");
 
-            var interfaceName = symbol.ToString();
-            var typeName = $"{symbol.Name}Stub";
-            var invokerName = $"{symbol.Name}Invoker";
-            int delegateCount = 0;
-            var delegates = new StringBuilder();
-            var functionPointers = new StringBuilder();
-            var invokerFunctions = new StringBuilder();
+        var symbol = (INamedTypeSymbol)context.TargetSymbol;
+        var interfaceName = symbol.ToString();
+        var typeName = $"{symbol.Name}";
+        var invokerName = $"{symbol.Name}Invoker";
+        int delegateCount = 0;
+        var exports = new StringBuilder();
+        var functionPointers = new StringBuilder();
+        var invokerFunctions = new StringBuilder();
+        var visibility = symbol.DeclaredAccessibility.ToString().ToLower();
 
-            var interfaceList = symbol.AllInterfaces.ToList();
-            interfaceList.Reverse();
-            interfaceList.Add(symbol);
+        var interfaceList = symbol.AllInterfaces.ToList();
+        interfaceList.Reverse();
+        interfaceList.Add(symbol);
 
-            foreach (var @interface in interfaceList)
+        foreach (var @interface in interfaceList)
+        {
+            foreach (var member in @interface.GetMembers())
             {
-                foreach (var member in @interface.GetMembers())
+                if (member is not IMethodSymbol method)
                 {
-                    if (member is not IMethodSymbol method)
+                    continue;
+                }
+
+                if (method.MethodKind == MethodKind.SharedConstructor)
+                {
+                    continue;
+                }
+
+                var parameterList = new StringBuilder();
+
+                parameterList.Append("IntPtr* self");
+
+                foreach (var parameter in method.Parameters)
+                {
+                    var isPointer = parameter.RefKind == RefKind.None ? "" : "*";
+
+                    parameterList.Append($", {parameter.Type}{isPointer} __arg{parameter.Ordinal}");
+                }
+
+                exports.AppendLine($"            [UnmanagedCallersOnly]");
+                exports.AppendLine($"            public static {method.ReturnType} {method.Name}({parameterList})");
+                exports.AppendLine($"            {{");
+                exports.AppendLine($"                var handle = GCHandle.FromIntPtr(*(self + 1));");
+                exports.AppendLine($"                var obj = ({interfaceName})handle.Target;");
+                exports.Append($"                ");
+
+                if (!method.ReturnsVoid)
+                {
+                    exports.Append("var result = ");
+                }
+
+                exports.Append($"obj.{method.Name}(");
+
+                for (int i = 0; i < method.Parameters.Length; i++)
+                {
+                    if (i > 0)
                     {
-                        continue;
+                        exports.Append(", ");
                     }
 
-                    delegateCount++;
-
-                    var parameterList = new StringBuilder();
-
-                    parameterList.Append("IntPtr self");
-
-                    foreach (var parameter in method.Parameters)
+                    if (method.Parameters[i].RefKind == RefKind.In)
                     {
-                        Log($"Parameter: {parameter.OriginalDefinition} {parameter.MetadataName}");
+                        exports.Append($"*__arg{i}");
+                    }
+                    else if (method.Parameters[i].RefKind is RefKind.Out)
+                    {
+                        exports.Append($"out var __local{i}");
+                    }
+                    else
+                    {
+                        exports.Append($"__arg{i}");
+                    }
+                }
 
-                        parameterList.Append($", {parameter.OriginalDefinition} a{parameter.Ordinal}");
+                exports.AppendLine(");");
+
+                for (int i = 0; i < method.Parameters.Length; i++)
+                {
+                    if (method.Parameters[i].RefKind is RefKind.Out)
+                    {
+                        exports.AppendLine($"                *__arg{i} = __local{i};");
+                    }
+                }
+
+                if (!method.ReturnsVoid)
+                {
+                    exports.AppendLine($"                return result;");
+                }
+
+                exports.AppendLine($"            }}");
+
+                exports.AppendLine();
+                exports.AppendLine();
+
+                var sourceArgsList = new StringBuilder();
+                sourceArgsList.Append("IntPtr _");
+
+                for (int i = 0; i < method.Parameters.Length; i++)
+                {
+                    sourceArgsList.Append($", ");
+
+                    var refKind = method.Parameters[i].RefKind;
+
+                    switch (refKind)
+                    {
+                        case RefKind.In:
+                            sourceArgsList.Append("in ");
+                            break;
+                        case RefKind.Out:
+                            sourceArgsList.Append("out ");
+                            break;
+                        case RefKind.Ref:
+                            sourceArgsList.Append("ref ");
+                            break;
                     }
 
-                    delegates.AppendLine("        [UnmanagedFunctionPointer(CallingConvention.StdCall)]");
-                    delegates.Append($"        private delegate {method.ReturnType} {method.Name}({parameterList});");
-                    delegates.AppendLine();
-                    delegates.AppendLine();
+                    sourceArgsList.Append(method.Parameters[i].Type);
+                    sourceArgsList.Append($" a{i}");
+                }
 
-                    var sourceArgsList = new StringBuilder();
-                    sourceArgsList.Append("IntPtr _");
+                functionPointers.Append($"            *(vtable + {delegateCount}) = (IntPtr)(delegate* unmanaged<IntPtr*");
 
-                    for (int i = 0; i < method.Parameters.Length; i++)
+                for (int i = 0; i < method.Parameters.Length; i++)
+                {
+                    functionPointers.Append($", {method.Parameters[i].Type}");
+
+                    if (method.Parameters[i].RefKind != RefKind.None)
                     {
-                        sourceArgsList.Append($", {method.Parameters[i].OriginalDefinition} a{i}");
+                        functionPointers.Append("*");
                     }
+                }
 
-                    var destinationArgsList = new StringBuilder();
+                if (method.ReturnsVoid)
+                {
+                    functionPointers.Append(", void");
+                }
+                else
+                {
+                    functionPointers.Append($", {method.ReturnType}");
+                }
 
-                    for (int i = 0; i < method.Parameters.Length; i++)
-                    {
-                        if (i > 0)
-                        {
-                            destinationArgsList.Append(", ");
-                        }
+                functionPointers.AppendLine($">)&Exports.{method.Name};");
 
-                        var refKind = method.Parameters[i].RefKind;
+                invokerFunctions.Append($"            public {method.ReturnType} {method.Name}(");
 
-                        switch (refKind)
-                        {
-                            case RefKind.In:
-                                destinationArgsList.Append("in ");
-                                break;
-                            case RefKind.Out:
-                                destinationArgsList.Append("out ");
-                                break;
-                            case RefKind.Ref:
-                                destinationArgsList.Append("ref ");
-                                break;
-                        }
-
-                        destinationArgsList.Append($"a{i}");
-                    }
-
-                    functionPointers.AppendLine($"            *vtable++ = Marshal.GetFunctionPointerForDelegate(new {method.Name}(({sourceArgsList}) => implementation.{method.Name}({destinationArgsList})));");
-
-                    invokerFunctions.Append($"            public {method.ReturnType} {method.Name}(");
-
-                    for (int i = 0; i < method.Parameters.Length; i++)
-                    {
-                        if (i > 0)
-                        {
-                            invokerFunctions.Append(", ");
-                        }
-
-                        invokerFunctions.Append($"{method.Parameters[i].OriginalDefinition} a{i}");
-                    }
-
-                    invokerFunctions.AppendLine(")");
-                    invokerFunctions.AppendLine("            {");
-
-                    invokerFunctions.Append("                var func = (delegate* unmanaged[Stdcall]<IntPtr");
-
-                    for (int i = 0; i < method.Parameters.Length; i++)
+                for (int i = 0; i < method.Parameters.Length; i++)
+                {
+                    if (i > 0)
                     {
                         invokerFunctions.Append(", ");
-
-                        var refKind = method.Parameters[i].RefKind;
-
-                        switch (refKind)
-                        {
-                            case RefKind.In:
-                                invokerFunctions.Append("in ");
-                                break;
-                            case RefKind.Out:
-                                invokerFunctions.Append("out ");
-                                break;
-                            case RefKind.Ref:
-                                invokerFunctions.Append("ref ");
-                                break;
-                        }
-
-                        invokerFunctions.Append(method.Parameters[i].Type);
                     }
 
-                    invokerFunctions.AppendLine($", {method.ReturnType}>)*(_vtable + {delegateCount - 1});");
+                    var refKind = method.Parameters[i].RefKind;
 
-                    invokerFunctions.Append("                ");
-
-                    if (method.ReturnType.SpecialType != SpecialType.System_Void)
+                    switch (refKind)
                     {
-                        invokerFunctions.Append("return ");
+                        case RefKind.In:
+                            invokerFunctions.Append("in ");
+                            break;
+                        case RefKind.Out:
+                            invokerFunctions.Append("out ");
+                            break;
+                        case RefKind.Ref:
+                            invokerFunctions.Append("ref ");
+                            break;
                     }
 
-                    invokerFunctions.Append("func(_implementation");
+                    invokerFunctions.Append($"{method.Parameters[i].Type} a{i}");
+                }
 
-                    for (int i = 0; i < method.Parameters.Length; i++)
+                invokerFunctions.AppendLine(")");
+                invokerFunctions.AppendLine("            {");
+
+                invokerFunctions.Append("                var func = (delegate* unmanaged[Stdcall]<IntPtr");
+
+                for (int i = 0; i < method.Parameters.Length; i++)
+                {
+                    invokerFunctions.Append(", ");
+
+                    var refKind = method.Parameters[i].RefKind;
+
+                    switch (refKind)
                     {
-                        invokerFunctions.Append($", ");
-
-                        var refKind = method.Parameters[i].RefKind;
-
-                        switch (refKind)
-                        {
-                            case RefKind.In:
-                                invokerFunctions.Append("in ");
-                                break;
-                            case RefKind.Out:
-                                invokerFunctions.Append("out ");
-                                break;
-                            case RefKind.Ref:
-                                invokerFunctions.Append("ref ");
-                                break;
-                        }
-
-                        invokerFunctions.Append($"a{i}");
+                        case RefKind.In:
+                            invokerFunctions.Append("in ");
+                            break;
+                        case RefKind.Out:
+                            invokerFunctions.Append("out ");
+                            break;
+                        case RefKind.Ref:
+                            invokerFunctions.Append("ref ");
+                            break;
                     }
 
-                    invokerFunctions.AppendLine(");");
-
-                    invokerFunctions.AppendLine("            }");
+                    invokerFunctions.Append(method.Parameters[i].Type);
                 }
-            }
 
-            sourceBuilder.Replace("{typeName}", typeName);
-            sourceBuilder.Replace("{delegates}", delegates.ToString());
-            sourceBuilder.Replace("{interfaceName}", interfaceName);
-            sourceBuilder.Replace("{delegateCount}", delegateCount.ToString());
-            sourceBuilder.Replace("{functionPointers}", functionPointers.ToString());
-            sourceBuilder.Replace("{invokerFunctions}", invokerFunctions.ToString());
-            sourceBuilder.Replace("{invokerName}", invokerName);
+                invokerFunctions.AppendLine($", {method.ReturnType}>)*(VTable + {delegateCount});");
 
-            context.AddSource($"{symbol.ContainingNamespace?.Name ?? "_"}.{symbol.Name}.g.cs", sourceBuilder.ToString());
+                invokerFunctions.Append("                ");
 
-            Log("Generated code: ");
-            Log("");
-            Log(sourceBuilder.ToString());
-        }
-
-        public void Initialize(GeneratorInitializationContext context)
-        {
-            context.RegisterForPostInitialization(EmitAttribute);
-
-            context.RegisterForSyntaxNotifications(() => new SyntaxReceiver());
-        }
-
-        private void EmitAttribute(GeneratorPostInitializationContext context)
-        {
-            context.AddSource("GenerateNativeStubAttribute.g.cs", @"
-using System;
-
-[AttributeUsage(AttributeTargets.Interface, Inherited = false, AllowMultiple = false)]
-internal class GenerateNativeStubAttribute : Attribute { }
-");
-        }
-    }
-
-    public class SyntaxReceiver : ISyntaxContextReceiver
-    {
-        public List<INamedTypeSymbol> Interfaces { get; } = new();
-
-        public void OnVisitSyntaxNode(GeneratorSyntaxContext context)
-        {
-            if (context.Node is InterfaceDeclarationSyntax classDeclarationSyntax
-                && classDeclarationSyntax.AttributeLists.Count > 0)
-            {
-                NativeStubGenerator.Log("Class: " + classDeclarationSyntax);
-                var symbol = (INamedTypeSymbol)context.SemanticModel.GetDeclaredSymbol(classDeclarationSyntax);
-
-                NativeStubGenerator.Log($"Symbol: {symbol.GetType()}");
-                NativeStubGenerator.Log(symbol.ToString());
-
-                foreach (var attribute in symbol.GetAttributes())
+                if (method.ReturnType.SpecialType != SpecialType.System_Void)
                 {
-                    NativeStubGenerator.Log($"Attribute: {attribute}");
+                    invokerFunctions.Append("return ");
                 }
 
-                if (symbol.GetAttributes().Any(a => a.AttributeClass.ToDisplayString() == "GenerateNativeStubAttribute"))
+                invokerFunctions.Append("func(_implementation");
+
+                for (int i = 0; i < method.Parameters.Length; i++)
                 {
-                    NativeStubGenerator.Log($"{symbol.GetType().Name} - {symbol.ToString()}");
-                    Interfaces.Add(symbol);
+                    invokerFunctions.Append($", ");
+
+                    var refKind = method.Parameters[i].RefKind;
+
+                    switch (refKind)
+                    {
+                        case RefKind.In:
+                            invokerFunctions.Append("in ");
+                            break;
+                        case RefKind.Out:
+                            invokerFunctions.Append("out ");
+                            break;
+                        case RefKind.Ref:
+                            invokerFunctions.Append("ref ");
+                            break;
+                    }
+
+                    invokerFunctions.Append($"a{i}");
                 }
+
+                invokerFunctions.AppendLine(");");
+
+                invokerFunctions.AppendLine("            }");
+
+                delegateCount++;
             }
         }
+
+        sourceBuilder.Replace("{typeName}", typeName);
+        sourceBuilder.Replace("{visibility}", visibility);
+        sourceBuilder.Replace("{exports}", exports.ToString());
+        sourceBuilder.Replace("{interfaceName}", interfaceName);
+        sourceBuilder.Replace("{delegateCount}", delegateCount.ToString());
+        sourceBuilder.Replace("{functionPointers}", functionPointers.ToString());
+        sourceBuilder.Replace("{invokerFunctions}", invokerFunctions.ToString());
+        sourceBuilder.Replace("{invokerName}", invokerName);
+        
+        //File.WriteAllText(Path.Combine(@"E:\temp", symbol.Name + ".g.cs"), sourceBuilder.ToString());
+
+        return ($"{symbol.ContainingNamespace?.Name ?? "_"}.{symbol.Name}", sourceBuilder.ToString());
     }
 }

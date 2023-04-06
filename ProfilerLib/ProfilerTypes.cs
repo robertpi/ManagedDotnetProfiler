@@ -1,7 +1,4 @@
-﻿using System;
-using System.Runtime.InteropServices.JavaScript;
-
-namespace ManagedDotnetProfiler;
+﻿﻿namespace ProfilerLib;
 
 public readonly struct ModuleId
 {
@@ -9,6 +6,11 @@ public readonly struct ModuleId
 }
 
 public readonly struct ObjectId
+{
+    public readonly nint Value;
+}
+
+public readonly struct GCHandleId
 {
     public readonly nint Value;
 }
@@ -29,6 +31,11 @@ public readonly struct ClassId
 }
 
 public readonly struct FunctionId
+{
+    public readonly nint Value;
+}
+
+public readonly struct ReJITId
 {
     public readonly nint Value;
 }
@@ -432,91 +439,97 @@ public enum COR_PRF_RUNTIME_TYPE
     COR_PRF_CORE_CLR = 0x2,
 }
 
-
-enum CorElementType : byte
+/// <summary>
+/// COR_PRF_GC_REASON describes the reason for a given GC.
+/// </summary>
+public enum COR_PRF_GC_REASON
 {
-    ELEMENT_TYPE_END = 0x00,
-    ELEMENT_TYPE_VOID = 0x01,
-    ELEMENT_TYPE_BOOLEAN = 0x02,
-    ELEMENT_TYPE_CHAR = 0x03,
-    ELEMENT_TYPE_I1 = 0x04,
-    ELEMENT_TYPE_U1 = 0x05,
-    ELEMENT_TYPE_I2 = 0x06,
-    ELEMENT_TYPE_U2 = 0x07,
-    ELEMENT_TYPE_I4 = 0x08,
-    ELEMENT_TYPE_U4 = 0x09,
-    ELEMENT_TYPE_I8 = 0x0a,
-    ELEMENT_TYPE_U8 = 0x0b,
-    ELEMENT_TYPE_R4 = 0x0c,
-    ELEMENT_TYPE_R8 = 0x0d,
-    ELEMENT_TYPE_STRING = 0x0e,
-
-    // every type above PTR will be simple type
-    ELEMENT_TYPE_PTR = 0x0f,     // PTR <type>
-    ELEMENT_TYPE_BYREF = 0x10,     // BYREF <type>
-
-    // Please use ELEMENT_TYPE_VALUETYPE. ELEMENT_TYPE_VALUECLASS is deprecated.
-    ELEMENT_TYPE_VALUETYPE = 0x11,     // VALUETYPE <class Token>
-    ELEMENT_TYPE_CLASS = 0x12,     // CLASS <class Token>
-    ELEMENT_TYPE_VAR = 0x13,     // a class type variable VAR <number>
-    ELEMENT_TYPE_ARRAY = 0x14,     // MDARRAY <type> <rank> <bcount> <bound1> ... <lbcount> <lb1> ...
-    ELEMENT_TYPE_GENERICINST = 0x15,     // GENERICINST <generic type> <argCnt> <arg1> ... <argn>
-    ELEMENT_TYPE_TYPEDBYREF = 0x16,     // TYPEDREF  (it takes no args) a typed referece to some other type
-
-    ELEMENT_TYPE_I = 0x18,     // native integer size
-    ELEMENT_TYPE_U = 0x19,     // native unsigned integer size
-    ELEMENT_TYPE_FNPTR = 0x1b,     // FNPTR <complete sig for the function including calling convention>
-    ELEMENT_TYPE_OBJECT = 0x1c,     // Shortcut for System.Object
-    ELEMENT_TYPE_SZARRAY = 0x1d,     // Shortcut for single dimension zero lower bound array
-                                     // SZARRAY <type>
-    ELEMENT_TYPE_MVAR = 0x1e,     // a method type variable MVAR <number>
-
-    // This is only for binding
-    ELEMENT_TYPE_CMOD_REQD = 0x1f,     // required C modifier : E_T_CMOD_REQD <mdTypeRef/mdTypeDef>
-    ELEMENT_TYPE_CMOD_OPT = 0x20,     // optional C modifier : E_T_CMOD_OPT <mdTypeRef/mdTypeDef>
-
-    // This is for signatures generated internally (which will not be persisted in any way).
-    ELEMENT_TYPE_INTERNAL = 0x21,     // INTERNAL <typehandle>
-
-    // Note that this is the max of base type excluding modifiers
-    ELEMENT_TYPE_MAX = 0x22,     // first invalid element type
-
-
-    ELEMENT_TYPE_MODIFIER = 0x40,
-    ELEMENT_TYPE_SENTINEL = 0x01 | ELEMENT_TYPE_MODIFIER, // sentinel for varargs
-    ELEMENT_TYPE_PINNED = 0x05 | ELEMENT_TYPE_MODIFIER,
-
+    COR_PRF_GC_INDUCED = 1,     // Induced by GC.Collect
+    COR_PRF_GC_OTHER = 0        // Anything else
 }
 
-enum CorUnmanagedCallingConvention : byte
+/// <summary>
+/// COR_PRF_GC_ROOT_KIND describes the kind of GC root exposed by
+/// the RootReferences2 callback.
+/// </summary>
+public enum COR_PRF_GC_ROOT_KIND
 {
-    IMAGE_CEE_UNMANAGED_CALLCONV_C = 0x1,
-    IMAGE_CEE_UNMANAGED_CALLCONV_STDCALL = 0x2,
-    IMAGE_CEE_UNMANAGED_CALLCONV_THISCALL = 0x3,
-    IMAGE_CEE_UNMANAGED_CALLCONV_FASTCALL = 0x4,
+    COR_PRF_GC_ROOT_STACK = 1,        // Variables on the stack
+    COR_PRF_GC_ROOT_FINALIZER = 2,    // Entry in the finalizer queue
+    COR_PRF_GC_ROOT_HANDLE = 3,        // GC Handle
+    COR_PRF_GC_ROOT_OTHER = 0        //Misc. roots
 }
 
-enum CorCallingConvention : byte
+/// <summary>
+/// COR_PRF_GC_ROOT_FLAGS describes properties of a GC root
+/// exposed by the RootReferences callback.
+/// </summary>
+public enum COR_PRF_GC_ROOT_FLAGS
 {
-    IMAGE_CEE_CS_CALLCONV_DEFAULT = 0x0,
-    IMAGE_CEE_CS_CALLCONV_C = CorUnmanagedCallingConvention.IMAGE_CEE_UNMANAGED_CALLCONV_C,
-    IMAGE_CEE_CS_CALLCONV_STDCALL = CorUnmanagedCallingConvention.IMAGE_CEE_UNMANAGED_CALLCONV_STDCALL,
-    IMAGE_CEE_CS_CALLCONV_THISCALL = CorUnmanagedCallingConvention.IMAGE_CEE_UNMANAGED_CALLCONV_THISCALL,
-    IMAGE_CEE_CS_CALLCONV_FASTCALL = CorUnmanagedCallingConvention.IMAGE_CEE_UNMANAGED_CALLCONV_FASTCALL,
-    IMAGE_CEE_CS_CALLCONV_VARARG = 0x5,
-    IMAGE_CEE_CS_CALLCONV_FIELD = 0x6,
-    IMAGE_CEE_CS_CALLCONV_LOCAL_SIG = 0x7,
-    IMAGE_CEE_CS_CALLCONV_PROPERTY = 0x8,
-    IMAGE_CEE_CS_CALLCONV_UNMANAGED = 0x9,  // Unmanaged calling convention encoded as modopts
-    IMAGE_CEE_CS_CALLCONV_GENERICINST = 0xa,  // generic method instantiation
-    IMAGE_CEE_CS_CALLCONV_NATIVEVARARG = 0xb,  // used ONLY for 64bit vararg PInvoke calls
-    IMAGE_CEE_CS_CALLCONV_MAX = 0xc,  // first invalid calling convention
+    COR_PRF_GC_ROOT_PINNING = 0x1,    // Prevents GC from moving the object
+    COR_PRF_GC_ROOT_WEAKREF = 0x2,    // Does not prevent collection
+    COR_PRF_GC_ROOT_INTERIOR = 0x4,   // Refers to a field of the object rather than the object itself
+    COR_PRF_GC_ROOT_REFCOUNTED = 0x8, // Whether it prevents collection depends on a refcount - if not,
+                                      // COR_PRF_GC_ROOT_WEAKREF will be set also
+}
 
+public struct COR_DEBUG_IL_TO_NATIVE_MAP
+{
+    public uint ilOffset;
+    public uint nativeStartOffset;
+    public uint nativeEndOffset;
+}
 
-    // The high bits of the calling convention convey additional info
-    IMAGE_CEE_CS_CALLCONV_MASK = 0x0f,  // Calling convention is bottom 4 bits
-    IMAGE_CEE_CS_CALLCONV_HASTHIS = 0x20,  // Top bit indicates a 'this' parameter
-    IMAGE_CEE_CS_CALLCONV_EXPLICITTHIS = 0x40,  // This parameter is explicitly in the signature
-    IMAGE_CEE_CS_CALLCONV_GENERIC = 0x10,  // Generic method sig with explicit number of type arguments (precedes ordinary parameter count)
-    // 0x80 is reserved for internal use
+public unsafe struct COR_PRF_EVENTPIPE_PROVIDER_CONFIG
+{
+    public char* providerName;
+    public ulong keywords;
+    public uint loggingLevel;
+    // filterData expects a semicolon delimited string that defines key value pairs
+    // such as "key1=value1;key2=value2;". Quotes can be used to escape the '=' and ';'
+    // characters. These key value pairs will be passed in the enable callback to event
+    // providers
+    public char* filterData;
+}
+
+public readonly struct EVENTPIPE_SESSION
+{
+    public readonly ulong Value;
+}
+
+public readonly struct EVENTPIPE_PROVIDER
+{
+    public readonly nint Value;
+}
+
+public readonly struct EVENTPIPE_EVENT
+{
+    public readonly nint Value;
+}
+
+public unsafe struct COR_PRF_EVENTPIPE_PARAM_DESC
+{
+    public uint type;
+    // Used if type == ArrayType
+    public uint elementType;
+    public char* name;
+}
+
+public struct COR_PRF_EVENT_DATA
+{
+    public ulong ptr;
+    public uint size;
+    public uint reserved;
+}
+
+public enum COR_PRF_HANDLE_TYPE
+{
+    COR_PRF_HANDLE_TYPE_WEAK = 0x1,
+    COR_PRF_HANDLE_TYPE_STRONG = 0x2,
+    COR_PRF_HANDLE_TYPE_PINNED = 0x3,
+}
+
+public readonly struct ObjectHandleId
+{
+    public readonly nint Value;
 }
