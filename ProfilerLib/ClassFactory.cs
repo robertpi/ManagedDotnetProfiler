@@ -19,7 +19,7 @@ public unsafe class ClassFactory : Interfaces.IClassFactory
 
     public HResult CreateInstance(IntPtr outer, in Guid guid, out IntPtr instance)
     {
-        Console.WriteLine("ClassFactory - CreateInstance - " + guid);
+        Log.WriteLine("ClassFactory - CreateInstance - " + guid);
 
         instance = _corProfilerCallback.ICorProfilerCallback;
         return HResult.S_OK;
@@ -29,13 +29,13 @@ public unsafe class ClassFactory : Interfaces.IClassFactory
 
     public HResult LockServer(bool @lock)
     {
-        Console.WriteLine("ClassFactory - LockServer");
+        Log.WriteLine("ClassFactory - LockServer");
         return default;
     }
 
     public HResult QueryInterface(in Guid guid, out IntPtr ptr)
     {
-        Console.WriteLine("ClassFactory - QueryInterface - " + guid);
+        Log.WriteLine("ClassFactory - QueryInterface - " + guid);
 
         if (guid == KnownGuids.ClassFactoryGuid)
         {
@@ -49,13 +49,13 @@ public unsafe class ClassFactory : Interfaces.IClassFactory
 
     public int AddRef()
     {
-        Console.WriteLine("ClassFactory - AddRef");
+        Log.WriteLine("ClassFactory - AddRef");
         return 1;
     }
 
     public int Release()
     {
-        Console.WriteLine("ClassFactory - Release");
+        Log.WriteLine("ClassFactory - Release");
         return 0;
     }
 }

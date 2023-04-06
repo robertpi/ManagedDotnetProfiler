@@ -42,12 +42,12 @@ internal class MethodMetadata
         var newBodyArray = ILBinaryWriter.GenILMethodBody(Name, newMethodBody);
 
         var hresult = corProfilerInfo.GetILFunctionBodyAllocator(ModuleMetadata.ModuleId, out var allocator);
-        Console.WriteLine($"GetILFunctionBodyAllocator {hresult}");
+        Log.WriteLine($"GetILFunctionBodyAllocator {hresult}");
 
         var bodyBuffer = allocator.Alloc((ulong)newBodyArray.LongLength);
         Utils.ArrayToBuffer(newBodyArray, bodyBuffer);
 
         hresult = corProfilerInfo.SetILFunctionBody(ModuleMetadata.ModuleId, MethodDef, bodyBuffer);
-        Console.WriteLine($"SetILFunctionBody {hresult}");
+        Log.WriteLine($"SetILFunctionBody {hresult}");
     }
 }

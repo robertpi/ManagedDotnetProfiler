@@ -11,7 +11,7 @@ public class DllMain
     [UnmanagedCallersOnly(EntryPoint = "DllGetClassObject")]
     public static unsafe int DllGetClassObject(void* rclsid, void* riid, nint* ppv)
     {
-        Console.WriteLine("DllGetClassObject");
+        Log.WriteLine("DllGetClassObject");
 
         Instance = new ClassFactory(new CorProfiler());
         *ppv = Instance.IClassFactory;

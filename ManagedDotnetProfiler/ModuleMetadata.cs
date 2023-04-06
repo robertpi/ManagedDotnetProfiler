@@ -29,7 +29,7 @@ internal class ModuleMetadata
         // this doesn't seem to work, always give 1;
         var hresult = import.GetModuleFromScope(out var mdModule);
         ModuleToken = mdModule;
-        Console.WriteLine($"ModuleToken: {ModuleToken.Value:x2}, hresult: {hresult.Value:x2}");
+        Log.WriteLine($"ModuleToken: {ModuleToken.Value:x2}, hresult: {hresult.Value:x2}");
     }
 
     // could these be made private, so this class hides some of the nastiness using them?
@@ -51,7 +51,7 @@ internal class ModuleMetadata
     {
         MdAssembly current = default;
         var hr = assemblyImport.GetAssemblyFromScope(&current);
-        Console.WriteLine($"GetAssemblyFromScope: {current.Value:x2}, hresult: {hr:x2}");
+        Log.WriteLine($"GetAssemblyFromScope: {current.Value:x2}, hresult: {hr:x2}");
 
         mdAssembly = current;
 
@@ -150,7 +150,7 @@ internal class ModuleMetadata
             fixed (byte* sb = sigBlob)
             {
                 var hresult = Import.FindMemberRef(typeRef, mn, (nint*)sb, (uint)sigBlob.Length, out memRefToken);
-                Console.WriteLine($"FindMemberRef: {hresult.Value:x2}");
+                Log.WriteLine($"FindMemberRef: {hresult.Value:x2}");
             }
         }
 

@@ -22,7 +22,7 @@ namespace ManagedDotnetProfiler
 
             var eventMask = CorPrfMonitor.COR_PRF_MONITOR_MODULE_LOADS | CorPrfMonitor.COR_PRF_MONITOR_JIT_COMPILATION;
 
-            Console.WriteLine("[Profiler] Setting event mask to " + eventMask);
+            Log.WriteLine("Setting event mask to " + eventMask);
 
             return ICorProfilerInfo11.SetEventMask(eventMask);
         }
@@ -56,8 +56,8 @@ namespace ManagedDotnetProfiler
 
                 var moduleMetadata = new ModuleMetadata(moduleId, metaDataImport, metaDataAssemblyImport, metaDataEmit, moduleName, assemblyId, baseAddress);
 
-                // Console.WriteLine($"[Profiler] Module Loaded: {moduleMetadata.ModuleName} loaded at address {moduleMetadata.BaseAddress:x2}");
-                // Console.WriteLine($"[Profiler] Assembly: {moduleMetadata.AssemblyName}, {moduleMetadata.AssemblyVersion}");
+                // Log.WriteLine($"Module Loaded: {moduleMetadata.ModuleName} loaded at address {moduleMetadata.BaseAddress:x2}");
+                // Log.WriteLine($"Assembly: {moduleMetadata.AssemblyName}, {moduleMetadata.AssemblyVersion}");
 
                 lock (_syncRoot)
                 {
@@ -90,7 +90,7 @@ namespace ManagedDotnetProfiler
 
             if (methodMetadata.FullyQualifiedName.Contains("<Main>"))
             {
-                Console.WriteLine($"[Profiler] {methodMetadata.FullyQualifiedName}");
+                Log.WriteLine($"{methodMetadata.FullyQualifiedName}");
 
                 var methodBody = methodMetadata.GetParsedBody(ICorProfilerInfo2);
 
