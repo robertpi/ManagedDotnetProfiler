@@ -57,6 +57,11 @@ public readonly struct ContextId
 
 public readonly struct MdToken
 {
+    public MdToken(int value)
+    {
+        Value = value;
+    }
+
     public readonly int Value;
 }
 
@@ -142,11 +147,6 @@ public readonly struct MdString
 public readonly struct MdCustomAttribute
 {
     public readonly int Value;
-}
-
-public readonly struct CorElementType
-{
-    public readonly uint Value;
 }
 
 public readonly struct HCORENUM
@@ -339,6 +339,8 @@ public static class KnownGuids
 {
     public static Guid IMetaDataImport = Guid.Parse("7DAC8207-D3AE-4c75-9B67-92801A497D44");
     public static Guid IMetaDataImport2 = Guid.Parse("FCE5EFA0-8BBA-4f8e-A036-8F2022B08466");
+    public static Guid IMetaDataAssemblyImport = Guid.Parse("EE62470B-E94B-424e-9B7C-2F00C9249F93");
+    public static Guid IMetaDataEmit = Guid.Parse("BA3FEE4C-ECB9-4e41-83B7-183FA41CD859");
     public static Guid ClassFactoryGuid = Guid.Parse("00000001-0000-0000-C000-000000000046");
 }
 

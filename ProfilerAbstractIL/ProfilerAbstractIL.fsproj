@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);44</NoWarn> <!-- Obsolete -->
+    <NoWarn>$(NoWarn);57</NoWarn> <!-- Experimental -->
+    <NoWarn>$(NoWarn);75</NoWarn> <!-- InternalCommandLineOption -->
+    <NoWarn>$(NoWarn);1204</NoWarn> <!-- This construct is for use in the FSharp.Core library and should not be used directly -->
+    <NoWarn>$(NoWarn);NU5125</NoWarn>
+    <TargetFramework>net7.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="ildiag.fs" />
+    <Compile Include="illib.fs" />
+    <Compile Include="FileSystem.fs" />
+    <Compile Include="il.fs" />
+    <Compile Include="ilbinary.fs" />
+    <Compile Include="ilreader.fs" />
+    <Compile Include="ilwrite.fs" />
+    <Compile Include="iltransforms.fs" />
+  </ItemGroup>
+
+</Project>

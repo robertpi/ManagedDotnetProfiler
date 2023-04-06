@@ -1,4 +1,6 @@
-﻿namespace ProfilerLib
+﻿using NativeObjects;
+
+namespace ProfilerLib
 {
     public class ICorProfilerInfo
     {
@@ -114,10 +116,9 @@
             return _impl.GetModuleInfo(ModuleId, out ppBaseLoadAddress, cchName, out pcchName, szName, out pAssemblyId);
         }
 
-        public HResult GetModuleMetaData(ModuleId ModuleId, CorOpenFlags dwOpenFlags, Guid riid, out IMetaDataImport metaDataImport)
+        public HResult GetModuleMetaData(ModuleId ModuleId, CorOpenFlags dwOpenFlags, Guid riid, out nint ptr)
         {
-            var result = _impl.GetModuleMetaData(ModuleId, dwOpenFlags, riid, out var ptr);
-            metaDataImport = new(ptr);
+            var result = _impl.GetModuleMetaData(ModuleId, dwOpenFlags, riid, out ptr);
             return result;
         }
 
@@ -126,12 +127,14 @@
             return _impl.GetILFunctionBody(ModuleId, methodId, out ppMethodHeader, out pcbMethodSize);
         }
 
-        public unsafe HResult GetILFunctionBodyAllocator(ModuleId ModuleId, out void* ppMalloc)
+        public unsafe HResult GetILFunctionBodyAllocator(ModuleId ModuleId, out IMethodMalloc malloc)
         {
-            return _impl.GetILFunctionBodyAllocator(ModuleId, out ppMalloc);
+            var result = _impl.GetILFunctionBodyAllocator(ModuleId, out var ptr);
+            malloc = new(ptr);
+            return result;
         }
 
-        public HResult SetILFunctionBody(ModuleId ModuleId, MdMethodDef methodid, byte pbNewILMethodHeader)
+        public unsafe HResult SetILFunctionBody(ModuleId ModuleId, MdMethodDef methodid, byte* pbNewILMethodHeader)
         {
             return _impl.SetILFunctionBody(ModuleId, methodid, pbNewILMethodHeader);
         }
