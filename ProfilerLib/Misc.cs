@@ -139,3 +139,9 @@ public enum CorCallingConvention : byte
     IMAGE_CEE_CS_CALLCONV_GENERIC = 0x10,  // Generic method sig with explicit number of type arguments (precedes ordinary parameter count)
     // 0x80 is reserved for internal use
 }
+
+public struct COR_PRF_FUNCTION
+{
+    public FunctionId functionId;
+    public ReJITId    reJitId;
+}

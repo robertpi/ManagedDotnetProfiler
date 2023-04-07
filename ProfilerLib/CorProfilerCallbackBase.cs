@@ -34,9 +34,9 @@
             return HResult.E_NOINTERFACE;
         }
 
-        protected abstract HResult Initialize(int iCorProfilerInfoVersion);
+        protected abstract HResult Initialize(int iCorProfilerInfoVersion, bool isAttach);
 
-        private int GetICorProfilerInfo(nint pICorProfilerInfoUnk)
+        protected int GetICorProfilerInfo(nint pICorProfilerInfoUnk)
         {
             int supportedInterface = 0;
 
@@ -179,7 +179,7 @@
 
             Log.WriteLine($"Fetched ICorProfilerInfo{version}");
 
-            return Initialize(version);
+            return Initialize(version, false);
         }
 
         HResult Interfaces.ICorProfilerCallback.Shutdown()

@@ -100,7 +100,8 @@ internal class ModuleMetadata
         HCORENUM emumerator;
         MdAssemblyRef currentAssemblyRef = default;
         Span<char> nameBuffer = stackalloc char[NameMaxSize];
-        while (true)
+        bool found = false;
+        while (!found)
         {
             ulong count;
             var hr = AssemblyImport.EnumAssemblyRefs(&emumerator, &currentAssemblyRef, 1, &count);
@@ -125,17 +126,26 @@ internal class ModuleMetadata
 
             var name = new string(nameBuffer[..(int)cchName]);
 
-            if (name == assemblyName)
+            Log.WriteLine($"Found assembly ref: {name}");
+
+            if (name.Contains(assemblyName))
             {
-                break;
+                found = true;
             }
+        }
+
+        if (!found)
+        {
+            Log.WriteLine($"Failed to find: {assemblyName}");
         }
 
         MdTypeRef typeRef;
         fixed (char* tn = typeName)
         {
             var hresult = Import.FindTypeRef(new MdToken(currentAssemblyRef.Value), tn, out typeRef);
+            Log.WriteLine($"FindTypeRef: {hresult.Value:x2}");
         }
+
         var sigBlob = new byte[]
         {
             (byte)CorCallingConvention.IMAGE_CEE_CS_CALLCONV_DEFAULT,

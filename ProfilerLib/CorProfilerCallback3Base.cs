@@ -32,9 +32,15 @@
             return ProfilerDetachSucceeded();
         }
 
-        HResult Interfaces.ICorProfilerCallback3.InitializeForAttach(nint pCorProfilerInfoUnk, nint pvClientData, uint cbClientData)
+        HResult Interfaces.ICorProfilerCallback3.InitializeForAttach(nint pICorProfilerInfoUnk, nint pvClientData, uint cbClientData)
         {
-            return InitializeForAttach(pCorProfilerInfoUnk, pvClientData, cbClientData);
+            Log.WriteLine($"CorProfilerCallbackBase - Initialize");
+
+            int version = GetICorProfilerInfo(pICorProfilerInfoUnk);
+
+            Log.WriteLine($"Fetched ICorProfilerInfo{version}");
+
+            return Initialize(version, true);
         }
 
         #endregion
